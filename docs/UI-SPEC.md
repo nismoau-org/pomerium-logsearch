@@ -1,7 +1,7 @@
 # UI Specification
 
 ## Header
-- **Container**: fixed to `pomerium-github-pomerium-1` (no interleaving needed; dropdown reserved for future)
+- **Container**: fixed to `pomerium` (no interleaving needed; dropdown reserved for future)
 - **Follow/Pause**: toggle (default Follow on). Following auto-scrolls to newest; Pause disables autoscroll
 - **Clear**: clear current view buffer (client-side only)
 - **Search**: full-text input + **Regex** toggle (debounced 150-250ms)

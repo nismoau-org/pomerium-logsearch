@@ -16,7 +16,9 @@
 - **UX**: newest at bottom, follow auto-scrolls, pause stops autoscroll; JSON expand/collapse per row; copy buttons for key fields
 
 ## Deployment
-- **Containerized UI**: runs as its own Docker container; mounts `/var/run/docker.sock:/var/run/docker.sock` (read-only access not strictly required for logs API, but keep read-only intent)
-- **Networking**: publish `127.0.0.1:8081:8081` only (localhost-bound)
-- **Runtime**: read-only, in-memory only; no disk persistence by default
-- **Config**: environment variables or flags (`POMERIUM_CONTAINER`, `BIND_ADDR`, `BUFFER_SIZE`, `INIT_TAIL`)
+- **Primary path: docker compose**: ship `docker-compose.yml` at repo root — one-command deploy (`POMERIUM_CONTAINER=<name> docker compose up -d --build`). Compose builds the image, mounts `/var/run/docker.sock:/var/run/docker.sock`, publishes **host loopback only** (`127.0.0.1:8081:8081`), and passes config via env (`POMERIUM_CONTAINER` default `pomerium`, `BIND_ADDR`, `BUFFER_SIZE`, `INIT_TAIL`). Hardened runtime: `read_only: true`, `no-new-privileges`, `restart: unless-stopped`.
+- **Containerized UI**: runs as its own Docker container; mounts `/var/run/docker.sock` (root-equivalent on host — trusted hosts only; the app itself only calls `ContainerList` + `ContainerLogs`)
+- **Networking**: publish `127.0.0.1:8081:8081` only (host loopback); never `0.0.0.0`
+- **Runtime**: read-only filesystem, in-memory only; no disk persistence by default
+- **Config**: environment variables or flags (`POMERIUM_CONTAINER`, `BIND_ADDR`, `BUFFER_SIZE`, `INIT_TAIL`); compose uses `${POMERIUM_CONTAINER:-pomerium}` interpolation for easy override
+- **Alternatives**: plain `docker run -p 127.0.0.1:8081:8081 -v /var/run/docker.sock:/var/run/docker.sock ghcr.io/<owner>/pomerium-logsearch:latest` also documented in README

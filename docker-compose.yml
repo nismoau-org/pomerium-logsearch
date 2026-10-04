@@ -1,0 +1,37 @@
+# pomerium-logsearch — easy deployment via docker compose
+#
+# Usage:
+#   docker compose up -d --build
+#   open http://127.0.0.1:8081
+#
+# Configuration:
+#   - POMERIUM_CONTAINER: name of the container running Pomerium (see `docker ps`)
+#   - The UI is published on host loopback ONLY (127.0.0.1:8081) — not reachable
+#     from other hosts. Do not change to 0.0.0.0.
+#   - The Docker socket mount is required for `docker logs` streaming and is
+#     root-equivalent on the host: run this only on trusted hosts (see docs/SECURITY.md).
+
+services:
+  pomerium-logsearch:
+    build: .
+    image: pomerium-logsearch:local
+    container_name: pomerium-logsearch
+    ports:
+      - "127.0.0.1:8081:8081" # host loopback only — never expose publicly
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+    environment:
+      # Container running Pomerium (override to match `docker ps` output)
+      # e.g. POMERIUM_CONTAINER=<name> docker compose up -d --build
+      POMERIUM_CONTAINER: ${POMERIUM_CONTAINER:-pomerium}
+      # Bind address INSIDE the container (must accept docker-proxy traffic;
+      # exposure is controlled by the host loopback port mapping above)
+      BIND_ADDR: 0.0.0.0:8081
+      BUFFER_SIZE: "10000"
+      INIT_TAIL: "1000"
+    restart: unless-stopped
+    read_only: true
+    security_opt:
+      - no-new-privileges:true
+    tmpfs:
+      - /tmp

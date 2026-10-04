@@ -74,9 +74,9 @@ Recommend Option B first if automating; defer for MVP.
 
 ## 6) Manual smoke checklist (pre-release)
 
-Run against real Pomerium container `pomerium-github-pomerium-1`:
+Run against real Pomerium container `pomerium`:
 
-1. `docker compose -f docker-compose.example.yml up --build`
+1. `docker compose up -d --build` (defaults) or `POMERIUM_CONTAINER=<name> docker compose up -d --build`
 2. Open `http://127.0.0.1:8081`
 3. Initial buffer loads (≈1000 lines), footer shows `connected`
 4. Live tail: new lines appear, autoscroll follows

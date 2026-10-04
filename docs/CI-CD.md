@@ -12,7 +12,7 @@ Runs on `push` to `main` and `pull_request` to `main`.
 | --- | --- |
 | `test` | Checkout, setup Go, `go vet ./...`, `gofmt -l .` (fail on diff), `go test -race ./...` (unit + HTTP/WS tests), build binary (`go build ./...`) |
 | `integration` | Checkout, setup Go, `go test -race -tags integration ./...` (Docker-based streaming/reconnect tests; GitHub runners include a Docker daemon) — separate job so failures are isolated |
-| `docker` | Checkout, `docker build` (verifies Dockerfile builds; no push) |
+| `docker` | Checkout, `docker build` (verifies Dockerfile builds; no push), `docker compose config` (validates `docker-compose.yml` syntax/interpolation) |
 
 - Concurrency: cancel in-progress runs for the same ref (`group: ci-${{ github.ref }}`).
 - No secrets needed for CI.
@@ -52,11 +52,16 @@ Rebuild `edge` image weekly to pick up base-image security updates (Go/alpine/di
 ## Release flow
 1. Developer tags release: `git tag v0.1.0 && git push origin v0.1.0`
 2. `release.yml` builds and pushes `ghcr.io/<owner>/pomerium-logsearch:v0.1.0` (+ `latest`, `0.1`)
-3. README quickstart: `docker run -p 127.0.0.1:8081:8081 -v /var/run/docker.sock:/var/run/docker.sock ghcr.io/<owner>/pomerium-logsearch:latest`
+3. README quickstart (docker compose, primary path):
+   ```sh
+   # pull published image instead of building
+   POMERIUM_CONTAINER=<name> docker compose up -d
+   ```
+   or plain `docker run`: `docker run -p 127.0.0.1:8081:8081 -v /var/run/docker.sock:/var/run/docker.sock ghcr.io/<owner>/pomerium-logsearch:latest`
 
 ## Implementation checklist
-- [ ] Add `.github/workflows/ci.yml` (vet/fmt/test + integration job + docker build)
+- [ ] Add `.github/workflows/ci.yml` (vet/fmt/test + integration job + docker build + `docker compose config` validation)
 - [ ] Add `.github/workflows/release.yml` (GHCR push with metadata tags)
 - [ ] Set repo package visibility (GHCR default: private → set public if desired)
-- [ ] Update README quickstart to reference published image (fallback: local build)
+- [ ] Update README quickstart to reference published image via docker compose (fallback: local `--build`)
 - [ ] (Optional) Add `.github/workflows/nightly.yml`

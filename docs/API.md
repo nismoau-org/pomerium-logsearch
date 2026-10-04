@@ -4,15 +4,15 @@
 Serves embedded web UI (static files).
 
 ## GET /api/containers
-Returns list of Docker containers. Filters to include Pomerium-related containers; defaults to include `pomerium-github-pomerium-1`.
+Returns list of Docker containers. Filters to include Pomerium-related containers; defaults to include `pomerium`.
 
 **Response**:
 ```json
 {
   "containers": [
-    {"id": "abc123", "name": "pomerium-github-pomerium-1", "image": "...", "state": "running"}
+    {"id": "abc123", "name": "pomerium", "image": "...", "state": "running"}
   ],
-  "default": "pomerium-github-pomerium-1"
+  "default": "pomerium"
 }
 ```
 
@@ -54,7 +54,7 @@ Query buffered logs with optional filters. Returns JSON payload.
 WebSocket endpoint for live log streaming.
 
 **Query params**:
-- `container` (string, default `pomerium-github-pomerium-1`): container name to stream
+- `container` (string, default `pomerium`): container name to stream
 
 **Messages (server -> client)**:
 - `log`: `{type:"log", line:{id, ts, raw, parsed}}`
