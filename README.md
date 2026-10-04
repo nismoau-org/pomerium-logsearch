@@ -32,3 +32,15 @@ Notes:
 - Read-only; no disk writes by default
 - Minimal surface area; designed for local debugging
 - See [docs/SECURITY.md](docs/SECURITY.md) for the full security plan (secret hygiene, non-disclosure of internal configs, Docker socket caveat)
+
+## Documentation
+- [docs/PLAN.md](docs/PLAN.md) — implementation plan
+- [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) — backend/frontend/deployment architecture
+- [docs/UI-SPEC.md](docs/UI-SPEC.md) — UI specification
+- [docs/API.md](docs/API.md) — HTTP/WebSocket API
+- [docs/TESTS.md](docs/TESTS.md) — test plan
+- [docs/CI-CD.md](docs/CI-CD.md) — GitHub Actions pipeline
+- [docs/SECURITY.md](docs/SECURITY.md) — security & hygiene plan
+
+## License
+MIT (LICENSE added during implementation)

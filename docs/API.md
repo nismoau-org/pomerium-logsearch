@@ -1,44 +1,22 @@
 # API Specification
 
+MVP scope: minimal endpoints. Filtering/search is **client-side only** (browser filters the in-memory buffer) and the container is **fixed at startup** from `POMERIUM_CONTAINER` — no container selection endpoints.
+
 ## GET /
 Serves embedded web UI (static files).
 
-## GET /api/containers
-Returns list of Docker containers. Filters to include Pomerium-related containers; defaults to include `pomerium`.
-
-**Response**:
-```json
-{
-  "containers": [
-    {"id": "abc123", "name": "pomerium", "image": "...", "state": "running"}
-  ],
-  "default": "pomerium"
-}
-```
-
 ## GET /api/buffer
-Query buffered logs with optional filters. Returns JSON payload.
+Returns the current in-memory buffer (raw lines). The client applies all filters/search (level, allow/deny, user/email, path/host, response-code, full-text/regex) locally.
 
-**Query params**:
+**Query params** (pagination only):
 - `limit` (int, default 1000): max lines to return
-- `offset` (int, default 0): offset in filtered buffer (for pagination if needed)
-- `q` (string): full-text search term
-- `regex` (bool, default false): treat `q` as regex
-- `level` (string): filter by level (trace/debug/info/warn/error/...)
-- `service` (string): filter by service field
-- `user` (string): contains filter on user/email
-- `email` (string): contains filter on email (or combined with user)
-- `path` (string): contains filter on path
-- `host` (string): contains filter on host/authority
-- `allow` (bool|null): filter by allow true/false (omit for all)
-- `deny` (bool|null): filter by deny true/false
-- `resp` (string): response code filter (exact/partial)
+- `offset` (int, default 0): offset from newest (0 = newest first)
 
 **Response**:
 ```json
 {
   "total": 1234,
-  "filtered": 42,
+  "container": "pomerium",
   "lines": [
     {
       "id": "uuid-or-ts-n",
@@ -51,10 +29,7 @@ Query buffered logs with optional filters. Returns JSON payload.
 ```
 
 ## WS /ws
-WebSocket endpoint for live log streaming.
-
-**Query params**:
-- `container` (string, default `pomerium`): container name to stream
+WebSocket endpoint for live log streaming (the single container fixed at startup via `POMERIUM_CONTAINER`).
 
 **Messages (server -> client)**:
 - `log`: `{type:"log", line:{id, ts, raw, parsed}}`
@@ -62,3 +37,7 @@ WebSocket endpoint for live log streaming.
 - `error`: `{type:"error", message:"..."}`
 
 Client sends no messages required (subscribe-only). Connection closes on disconnect; server may close on container errors.
+
+## Future (post-MVP, not implemented)
+- `GET /api/containers` + `WS /ws?container=<name>` — container selection (dropdown in UI)
+- Server-side filter params on `/api/buffer` (if buffers outgrow browser filtering)

@@ -26,9 +26,9 @@
 
 ## 5) API
 - `GET /` - UI
-- `GET /api/containers` - list containers
-- `GET /api/buffer` - query buffered logs with filters
-- `WS /ws?container=<name>` - live stream
+- `GET /api/buffer` - raw buffered lines (client-side filtering/search; pagination via `limit`/`offset`)
+- `WS /ws` - live stream (container fixed at startup via `POMERIUM_CONTAINER`)
+- MVP has no container-selection endpoints; filtering is client-side only (see [API.md](API.md) for future items)
 
 ## 6) Performance & Safety
 - Localhost-only `127.0.0.1:8081`; read-only; in-memory only
@@ -39,10 +39,10 @@
 1. Scaffold Go module + embedded static files
 2. Docker API client + log streaming
 3. Ring buffer + normalization + WebSocket broadcaster
-4. HTTP endpoints (containers, buffer)
+4. HTTP endpoints (`/api/buffer`, `WS /ws`)
 5. Frontend: virtualized list + filters + search + expand/collapse
 6. Dockerfile (multi-stage build)
 7. **Deployment via docker compose**: ship `docker-compose.yml` at repo root (build image, mount `/var/run/docker.sock`, publish `127.0.0.1:8081:8081` only, `POMERIUM_CONTAINER` env with `${POMERIUM_CONTAINER:-pomerium}` default, `BUFFER_SIZE`/`INIT_TAIL` env, `read_only` + `no-new-privileges` hardening) and document one-command usage in README (`POMERIUM_CONTAINER=<name> docker compose up -d --build` → open `http://127.0.0.1:8081`)
 8. Tests (see [TESTS.md](TESTS.md)): unit (parsing, ring buffer, filters, broadcaster), HTTP/WS tests (`httptest`), integration tests behind `//go:build integration` tag
-9. GitHub Actions CI/CD (see [CI-CD.md](CI-CD.md)): `ci.yml` (vet/fmt/test + docker build + integration job) and `release.yml` (push image to GHCR on `main` and `v*` tags); compose file verified in CI via `docker compose config`
-10. README + docs
+9. GitHub Actions CI/CD (see [CI-CD.md](CI-CD.md)): `ci.yml` (vet/fmt/test + docker build + integration job + gitleaks) and `release.yml` (push image to GHCR on `main` and `v*` tags); compose file verified in CI via `docker compose config`
+10. `LICENSE` (MIT), `.gitignore` (secrets/binaries per [SECURITY.md](SECURITY.md)), `.dockerignore`, README + docs

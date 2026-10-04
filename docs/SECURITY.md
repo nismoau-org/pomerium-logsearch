@@ -41,25 +41,28 @@ Hygiene and security requirements for `pomerium-logsearch`. The project is **gen
 ## 4) Project generality
 
 - The project must work for **any** Pomerium Docker deployment, not one specific environment:
-  - container name fully configurable (`POMERIUM_CONTAINER` env, `--container` flag; `/api/containers` list supports picking any container)
+  - container name fully configurable (`POMERIUM_CONTAINER` env / `--container` flag; fixed at startup — no container-selection UI in MVP)
   - no hardcoded internal names in code (constants/docs use generic examples)
   - docs describe behavior generically ("any container running Pomerium")
 - If a feature only makes sense for one internal setup, it does not belong in this project.
 
-## 5) Publishing hygiene (public source safety)
+## 5) Publishing hygiene (source safety)
 
-- Before first push to a public repo:
+Repo status: currently **private** (`nismoau-org/pomerium-logsearch`); hygiene rules below apply regardless, and must be re-verified if the repo is ever made public.
+
+- Before making the repo public (or as ongoing practice while private):
   - [ ] `git log` contains no secrets/internal info (fresh repo preferred)
   - [ ] `grep` repo for keys/tokens (`gitleaks detect .` clean)
   - [ ] docs contain no internal hostnames/IPs/container names
   - [ ] sample fixtures anonymized
-  - [ ] LICENSE present, README states local-only + docker-socket caveat
+  - [ ] LICENSE (MIT) present, README states local-only + docker-socket caveat
 - Ongoing: CI secret scanning (e.g. `gitleaks` step in `ci.yml` — see checklist below).
 
 ## Implementation checklist
 - [ ] `.gitignore` includes `.env`, `*.pem`, `*.key`, `*.crt`, `credentials*`, `docker-compose.override.yml`
 - [ ] Add `gitleaks` (or similar) scan step to `ci.yml`
 - [ ] Optional: pre-commit hook with secret scanning
+- [ ] Add MIT `LICENSE`
 - [ ] Generic naming throughout docs/code: container example = `pomerium`, hosts = `example.com`, IPs = `127.0.0.1` only
 - [ ] Env/flag config for container name (`POMERIUM_CONTAINER` / `--container`)
 - [ ] README security section: docker socket caveat + localhost-only guarantee

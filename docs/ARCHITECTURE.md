@@ -1,7 +1,7 @@
 # Architecture
 
 ## Backend (Go)
-- **Module**: single Go module (`github.com/justin/pomerium-logsearch` or user-defined; local only)
+- **Module**: single Go module (`github.com/nismoau-org/pomerium-logsearch` or user-defined; local only)
 - **Docker API**: use `github.com/docker/docker/client` to stream container logs (`ContainerLogs` with `Follow=true`, `Tail=1000`, `ShowStdout=true`, `ShowStderr=true`)
 - **Ring buffer**: fixed-capacity (10k lines) storing entries with `id`, `ts`, `raw` (original JSON string), `parsed` (normalized map)
 - **Broadcaster**: fan-out new log lines to connected WebSocket clients; handle subscribe/unsubscribe cleanly
@@ -21,4 +21,4 @@
 - **Networking**: publish `127.0.0.1:8081:8081` only (host loopback); never `0.0.0.0`
 - **Runtime**: read-only filesystem, in-memory only; no disk persistence by default
 - **Config**: environment variables or flags (`POMERIUM_CONTAINER`, `BIND_ADDR`, `BUFFER_SIZE`, `INIT_TAIL`); compose uses `${POMERIUM_CONTAINER:-pomerium}` interpolation for easy override
-- **Alternatives**: plain `docker run -p 127.0.0.1:8081:8081 -v /var/run/docker.sock:/var/run/docker.sock ghcr.io/<owner>/pomerium-logsearch:latest` also documented in README
+- **Alternatives**: plain `docker run -p 127.0.0.1:8081:8081 -v /var/run/docker.sock:/var/run/docker.sock ghcr.io/nismoau-org/pomerium-logsearch:latest` also documented in README

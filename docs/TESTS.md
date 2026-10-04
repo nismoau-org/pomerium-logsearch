@@ -19,13 +19,14 @@ Testing strategy for `pomerium-logsearch`. All tests runnable locally with `go t
 - IDs are monotonic; `ts` ordering preserved
 - Snapshot under concurrent append (race detector: `-race`)
 
-### Filtering / search
+### Filtering / search (client-side in MVP)
+MVP filtering/search runs in the browser over the in-memory buffer; Go only serves raw lines. Predicate tests therefore target the JS filter module (see section 5, Option B) or shared golden cases:
 - Level filter (exact + alias match)
 - `allow`/`deny` tri-state filters (true/false/omit)
 - Reason contains filter matches any of the four reason fields
 - User/email, path/host (with `authority` fallback), response-code exact/partial
 - Full-text: case-insensitive substring over raw + parsed values
-- Regex: valid pattern matches; invalid pattern → error returned (no server panic), UI shows message
+- Regex: valid pattern matches; invalid pattern → UI shows error (no crash)
 - Combined predicates (AND semantics)
 
 ### Broadcaster
@@ -50,11 +51,9 @@ Use a fixture container built from a tiny Dockerfile or `docker run alpine sh -c
 ## 3) HTTP API tests (`net/http/httptest`)
 
 - `GET /` serves UI (200, `text/html`)
-- `GET /api/containers` returns fixture/default container JSON
 - `GET /api/buffer` with no params → default limit 1000
-- `GET /api/buffer` with each filter param (`level`, `allow`, `deny`, `resp`, `user`, `path`, `host`, `q`, `regex=true`) → correct subset
-- Invalid regex `q&regex=true` → 400 with error JSON
-- `GET /api/buffer` `offset`/`limit` pagination boundaries (0, >total, negative → clamped)
+- `GET /api/buffer` `offset`/`limit` pagination boundaries (0, >total, negative → clamped); response includes `total` and `container`
+- No server-side filter params in MVP (filtering is client-side; if added later, test each param → correct subset)
 - Bind address: server listens only on configured `127.0.0.1:8081` (config test)
 
 ## 4) WebSocket tests
@@ -107,10 +106,9 @@ From [CI-CD.md](CI-CD.md):
 ## Implementation checklist
 - [ ] Unit: parsing/normalization + fixtures from real Pomerium log lines
 - [ ] Unit: ring buffer + concurrency (`-race`)
-- [ ] Unit: filter/search predicates (incl. invalid regex)
 - [ ] Unit: broadcaster fan-out
-- [ ] HTTP API tests (`httptest`) for `/`, `/api/containers`, `/api/buffer` (all params)
+- [ ] HTTP API tests (`httptest`) for `/` and `/api/buffer` (pagination)
 - [ ] WS tests (subscribe, receive, multi-client)
 - [ ] Integration tests behind `//go:build integration` tag (streaming, reconnect, demux, missing container)
 - [ ] Add `integration` job to `ci.yml`
-- [ ] Frontend: manual smoke checklist per release; optional `node --test` for filter predicates
+- [ ] Frontend: manual smoke checklist per release; optional `node --test` for client-side filter predicates
