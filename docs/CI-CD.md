@@ -10,11 +10,13 @@ Runs on `push` to `main` and `pull_request` to `main`.
 
 | Job | Steps |
 | --- | --- |
-| `test` | Checkout, setup Go, `go vet ./...`, `gofmt -l .` (fail on diff), `go test ./...` (with `-race`), build binary (`go build ./...`) |
+| `test` | Checkout, setup Go, `go vet ./...`, `gofmt -l .` (fail on diff), `go test -race ./...` (unit + HTTP/WS tests), build binary (`go build ./...`) |
+| `integration` | Checkout, setup Go, `go test -race -tags integration ./...` (Docker-based streaming/reconnect tests; GitHub runners include a Docker daemon) — separate job so failures are isolated |
 | `docker` | Checkout, `docker build` (verifies Dockerfile builds; no push) |
 
 - Concurrency: cancel in-progress runs for the same ref (`group: ci-${{ github.ref }}`).
 - No secrets needed for CI.
+- Test strategy details: see [TESTS.md](TESTS.md).
 
 ### 2. `.github/workflows/release.yml` — Build & Push image (on tag / main)
 
@@ -53,7 +55,7 @@ Rebuild `edge` image weekly to pick up base-image security updates (Go/alpine/di
 3. README quickstart: `docker run -p 127.0.0.1:8081:8081 -v /var/run/docker.sock:/var/run/docker.sock ghcr.io/<owner>/pomerium-logsearch:latest`
 
 ## Implementation checklist
-- [ ] Add `.github/workflows/ci.yml` (vet/fmt/test + docker build)
+- [ ] Add `.github/workflows/ci.yml` (vet/fmt/test + integration job + docker build)
 - [ ] Add `.github/workflows/release.yml` (GHCR push with metadata tags)
 - [ ] Set repo package visibility (GHCR default: private → set public if desired)
 - [ ] Update README quickstart to reference published image (fallback: local build)

@@ -43,5 +43,6 @@
 5. Frontend: virtualized list + filters + search + expand/collapse
 6. Dockerfile (multi-stage build)
 7. `docker-compose.example.yml`
-8. GitHub Actions CI/CD (see [CI-CD.md](CI-CD.md)): `ci.yml` (vet/fmt/test + docker build) and `release.yml` (push image to GHCR on `main` and `v*` tags)
-9. README + docs
+8. Tests (see [TESTS.md](TESTS.md)): unit (parsing, ring buffer, filters, broadcaster), HTTP/WS tests (`httptest`), integration tests behind `//go:build integration` tag
+9. GitHub Actions CI/CD (see [CI-CD.md](CI-CD.md)): `ci.yml` (vet/fmt/test + docker build + integration job) and `release.yml` (push image to GHCR on `main` and `v*` tags)
+10. README + docs
