@@ -54,7 +54,9 @@ jobs:
         with:
           node-version: "22"
       - name: filter predicate tests
-        run: node --test web/
+        # Explicit file path: `node --test <dir>` directory discovery differs
+        # across Node versions (failed on 22 with "Cannot find module 'web'").
+        run: node --test web/filters.test.js
 
   security:
     name: secret scan (gitleaks)
@@ -63,7 +65,12 @@ jobs:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
+      # GITLEAKS_LICENSE is set as a repo/org secret (required by the v3
+      # action for organization repos).
       - uses: gitleaks/gitleaks-action@v3
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITLEAKS_LICENSE: ${{ secrets.GITLEAKS_LICENSE }}
 
   docker:
     name: docker build + compose validate
