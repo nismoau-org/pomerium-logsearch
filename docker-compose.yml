@@ -32,8 +32,14 @@ services:
       # e.g. POMERIUM_CONTAINER=<name> docker compose up -d
       POMERIUM_CONTAINER: ${POMERIUM_CONTAINER:-pomerium}
       # Bind address INSIDE the container (must accept docker-proxy traffic;
-      # exposure is controlled by the host loopback port mapping above)
+      # exposure is controlled by the host loopback port mapping above).
+      # The process runs in its own network namespace, so it must listen on
+      # all interfaces internally; the localhost-only guarantee is preserved
+      # by the loopback-only `ports:` mapping. This explicit opt-in satisfies
+      # the bind guard (see docs/SECURITY.md) — remove it if you ever bind
+      # the process directly on a host (there, 127.0.0.1 is the default).
       BIND_ADDR: 0.0.0.0:8081
+      ALLOW_REMOTE: "true"
       BUFFER_SIZE: "10000"
       INIT_TAIL: "1000"
     restart: unless-stopped

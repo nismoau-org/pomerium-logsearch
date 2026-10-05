@@ -131,7 +131,9 @@ func (c Config) Validate() error {
 	// Empty/wildcard ("", "0.0.0.0", "::") and any other host are remote.
 	if !c.AllowRemote {
 		return fmt.Errorf("refusing to bind non-loopback address %q without --allow-remote "+
-			"(see docs/SECURITY.md: MVP has no auth, so remote exposure is opt-in)", c.BindAddr)
+			"(or ALLOW_REMOTE=1): MVP has no auth, so remote exposure is opt-in "+
+			"(see docs/SECURITY.md; container deployments must bind 0.0.0.0 internally "+
+			"and keep the host `ports:` mapping loopback-only)", c.BindAddr)
 	}
 	return nil
 }

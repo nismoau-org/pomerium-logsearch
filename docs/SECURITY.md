@@ -29,6 +29,7 @@ Hygiene and security requirements for `pomerium-logsearch`. The project is **gen
 ## 3) Runtime security
 
 - **Localhost-only by default**: bind `127.0.0.1:8081`; refuse `0.0.0.0` unless explicitly overridden by a flag (e.g. `--allow-remote`), and warn loudly if used.
+  - Exception that proves the rule: the shipped `docker-compose.yml` sets `BIND_ADDR=0.0.0.0:8081` **plus** `ALLOW_REMOTE=true`, because a process in a container network namespace must listen on all interfaces to receive its published port — the localhost-only guarantee there comes from the host `ports:` mapping (`127.0.0.1:8081:8081`). Running the binary directly on a host keeps the `127.0.0.1` default.
 - **No auth → therefore no remote**: because the MVP has no authentication, remote exposure must never be the default. If remote access is ever needed, add auth first (reverse proxy with auth, or basic auth built in) — treat as a prerequisite, not a follow-up.
 - **Docker socket is root-equivalent**: mounting `/var/run/docker.sock` grants full control of the host Docker daemon. Mitigations:
   - README must state this plainly (trusted host, local-only tool)
