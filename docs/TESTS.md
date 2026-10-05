@@ -20,11 +20,13 @@ Testing strategy for `pomerium-logsearch`. All tests runnable locally with `go t
 - Snapshot under concurrent append (race detector: `-race`)
 
 ### Filtering / search (client-side in MVP)
-MVP filtering/search runs in the browser over the in-memory buffer; Go only serves raw lines. Predicate tests therefore target the JS filter module (see section 5, Option B) or shared golden cases:
+MVP filtering/search runs in the browser over the in-memory buffer; Go only serves raw lines. Predicate tests target the JS filter module (`web/filters.js`, automated via `node --test web/filters.test.js` in CI):
 - Level filter (exact + alias match)
 - `allow`/`deny` tri-state filters (true/false/omit)
 - Reason contains filter matches any of the four reason fields
 - User/email, path/host (with `authority` fallback), response-code exact/partial
+- Service, request-id (`request-id` + `check-request-id`), method, message, time-substring filters
+- Absolute time range (`timeFrom`/`timeTo` epoch bounds; unparseable timestamps excluded while a range is active)
 - Full-text: case-insensitive substring over raw + parsed values
 - Regex: valid pattern matches; invalid pattern → UI shows error (no crash)
 - Combined predicates (AND semantics)
@@ -63,27 +65,25 @@ Use a fixture container built from a tiny Dockerfile or `docker run alpine sh -c
 - Multiple clients receive same lines
 - Disconnect cleanly; server side cleans up subscriber
 
-## 5) Frontend tests (lightweight, optional for MVP)
+## 5) Frontend tests
 
-MVP: manual smoke checklist (below). Optional automation later:
-- **Option A**: Playwright against a mocked server (static UI + fixture `/api/buffer`) — covers rendering, filters, expand/collapse, follow/pause
-- **Option B**: keep JS thin; cover logic (filter predicates) by extracting to a small pure-JS module and testing with `node --test`
-
-Recommend Option B first if automating; defer for MVP.
+- **JS predicate tests** (`web/filters.test.js`, run in CI via `node --test web/filters.test.js`): level aliases, decision inference (bools + reason fields), every column filter, time-range bounds, invalid-regex error, AND-combination.
+- Manual smoke checklist (below) covers rendering, expand/collapse, follow/pause/sort/columns/time-range.
+- Deferred: Playwright against a mocked server (static UI + fixture `/api/buffer`) if browser-level automation is ever needed.
 
 ## 6) Manual smoke checklist (pre-release)
 
 Run against real Pomerium container `pomerium`:
 
-1. `docker compose up -d --build` (defaults) or `POMERIUM_CONTAINER=<name> docker compose up -d --build`
+1. `POMERIUM_CONTAINER=<name> docker compose up -d` (pulls `:edge`; defaults) — or build from source: `docker compose -f docker-compose.yml -f docker-compose.build.yml up -d --build`
 2. Open `http://127.0.0.1:8081`
 3. Initial buffer loads (≈1000 lines), footer shows `connected`
 4. Live tail: new lines appear, autoscroll follows
 5. Pause stops autoscroll; Follow resumes to bottom
 6. Search: plain text finds matches; regex toggle works; invalid regex shows error
-7. Level dropdown filters correctly
-8. Allow/Deny tri-state + reason filter on authorize logs
-9. User/email, path/host, response-code filters
+7. Level header popup: dropdown filters correctly, dismisses on select, header shows marker
+8. Decision header popup: Allow/Deny tri-state + reason input filter authorize logs; header shows marker
+9. User/Path/Code header popups: contains-inputs filter live; Enter/Escape/outside-click dismisses; per-column Clear works
 10. Click row → full JSON expands; copy buttons work (request-id, user, path, host)
 11. Restart Pomerium container → UI reconnects, streaming resumes (status shows reconnecting → connected)
 12. Restart UI container → buffer refills from initial tail
@@ -91,9 +91,9 @@ Run against real Pomerium container `pomerium`:
 14. High-volume check: burst logs remain responsive (scroll/search smooth)
 15. Sort toggle: newest-first puts newest at top; oldest-first restores newest at bottom; follow pins to the live edge in both orders
 16. Jump to live: after scrolling away (paused), jumps to newest rows and resumes follow
-17. Columns menu: hide Method/Host/Req ID (and back); blanks render for rows lacking the key; toggles + sort survive reload via localStorage
-18. More filters: service / request-id / method / message / time each narrow the list (AND with quick filters + search)
-19. Time range: preset (e.g. Last 1 hour) narrows to that window; custom From/To via calendar works; Start-after-end shows an error; Clear restores All time
+17. Columns button: popup toggles Method/Host/Req ID (and back); blanks render for rows lacking the key; toggles + sort survive reload via localStorage
+18. Service/Req ID/Method/Host/Message header popups each narrow the list (AND with search)
+19. Time header popup: starts collapsed with live tail following; preset (e.g. Last 1 hour) narrows to that window; custom From/To via calendar works; Start-after-end shows an error; Apply/Clear/Escape closes the popup; Reset filters clears everything
 
 ## 7) Performance checks (informal)
 
@@ -104,16 +104,18 @@ Run against real Pomerium container `pomerium`:
 ## 8) CI integration
 
 From [CI-CD.md](CI-CD.md):
-- `ci.yml` → `test` job: `go vet ./...`, `gofmt -l .`, `go test -race ./...` (unit + HTTP/WS tests)
-- `ci.yml` → `docker` job: image builds
-- Integration tests (`//go:build integration`): run in CI only if a Docker daemon is available on the runner (GitHub-hosted runners have Docker) — either include in `test` job with `go test -race -tags integration ./...` or a separate `integration` job; default plan: separate job so failures are isolated
+- `ci.yml` → `test` job: `go vet ./...`, `gofmt -l .`, `go test -race ./...` (unit + HTTP/WS tests), `go build ./...`
+- `ci.yml` → `frontend` job: `node --test web/filters.test.js` (JS predicate tests)
+- `ci.yml` → `docker` job: image builds; both compose files validated via `docker compose config`
+- `ci.yml` → `security` job: `gitleaks-action@v3` (requires `GITLEAKS_LICENSE` repo/org secret for org repos)
+- Integration tests (`//go:build integration`): separate `integration` job (`go test -race -tags integration ./...`) so failures are isolated
 
 ## Implementation checklist
-- [ ] Unit: parsing/normalization + fixtures from real Pomerium log lines
-- [ ] Unit: ring buffer + concurrency (`-race`)
-- [ ] Unit: broadcaster fan-out
-- [ ] HTTP API tests (`httptest`) for `/` and `/api/buffer` (pagination)
-- [ ] WS tests (subscribe, receive, multi-client)
-- [ ] Integration tests behind `//go:build integration` tag (streaming, reconnect, demux, missing container)
-- [ ] Add `integration` job to `ci.yml`
-- [ ] Frontend: manual smoke checklist per release; optional `node --test` for client-side filter predicates
+- [x] Unit: parsing/normalization + fixtures from real Pomerium log lines
+- [x] Unit: ring buffer + concurrency (`-race`)
+- [x] Unit: broadcaster fan-out
+- [x] HTTP API tests (`httptest`) for `/` and `/api/buffer` (pagination)
+- [x] WS tests (subscribe, receive, multi-client)
+- [x] Integration tests behind `//go:build integration` tag (streaming, reconnect, demux, missing container)
+- [x] Add `integration` job to `ci.yml`
+- [x] Frontend: `node --test` predicate tests in CI + manual smoke checklist per release

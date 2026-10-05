@@ -83,7 +83,7 @@ function contains(haystack, needle) {
 /**
  * matchFilters(entry, f): AND semantics over all predicates.
  * f = { level, decision('all'|'allow'|'deny'), reason, user, path, code,
- *       service, reqid, method, message, time }
+ *       service, reqid, method, host, message, time }
  * - reason: case-insensitive substring over any of the 4 reason fields
  * - user: over user + email
  * - path: over path + host + authority
@@ -127,6 +127,11 @@ export function matchFilters(entry, f = {}) {
   if (f.path) {
     const hay = `${str(parsed.path)} ${str(parsed.host)} ${str(parsed.authority)}`;
     if (!contains(hay, f.path)) return false;
+  }
+
+  if (f.host) {
+    const hay = `${str(parsed.host)} ${str(parsed.authority)}`;
+    if (!contains(hay, f.host)) return false;
   }
 
   if (f.code) {

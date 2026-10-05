@@ -1,7 +1,8 @@
 # pomerium-logsearch — multi-stage build (single static Go binary on distroless)
 #
 # Build:   docker build -t pomerium-logsearch .
-# Compose: POMERIUM_CONTAINER=<name> docker compose up -d --build
+# Compose: POMERIUM_CONTAINER=<name> docker compose up -d            # pulls :edge
+#          TAG=x docker compose -f docker-compose.yml -f docker-compose.build.yml up -d --build
 #
 # The app listens on BIND_ADDR inside the container (compose sets
 # BIND_ADDR=0.0.0.0:8081; exposure is controlled by the host loopback

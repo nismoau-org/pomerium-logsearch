@@ -67,23 +67,7 @@ input.invalid { border-color: var(--red); outline: 1px solid var(--red); }
 .regex-toggle { font-size: 12px; color: var(--muted); display: flex; gap: 4px; align-items: center; }
 .regex-error { color: var(--red); font-size: 12px; }
 
-/* Time-range popup (calendar picker). */
-.timerange-wrap { position: relative; }
-.timepop {
-  position: absolute;
-  top: calc(100% + 6px);
-  left: 0;
-  z-index: 20;
-  min-width: 290px;
-  background: var(--panel);
-  border: 1px solid var(--border);
-  border-radius: 8px;
-  padding: 10px;
-  display: flex;
-  flex-direction: column;
-  gap: 10px;
-  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.5);
-}
+/* Time-range editor internals (rendered inside the shared column popover). */
 .time-presets { display: flex; flex-wrap: wrap; gap: 6px; }
 .time-presets button {
   background: var(--bg);
@@ -111,8 +95,7 @@ input.invalid { border-color: var(--red); outline: 1px solid var(--red); }
 }
 .btn.primary { background: var(--accent); border-color: var(--accent); color: #fff; }
 
-.quickfilters { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
-.quickfilters input { flex: 1 1 140px; min-width: 120px; }
+/* Segmented tri-state control (reused inside the Decision popup). */
 .seg { display: inline-flex; border: 1px solid var(--border); border-radius: 6px; overflow: hidden; }
 .seg-btn {
   background: var(--bg);
@@ -191,15 +174,47 @@ input.invalid { border-color: var(--red); outline: 1px solid var(--red); }
 .hide-col-path .c-path, .hide-col-method .c-method, .hide-col-host .c-host,
 .hide-col-reqid .c-reqid, .hide-col-message .c-msg { display: none; }
 
-/* Collapsible second header row: column toggles + per-column filters. */
-.secondrow { background: var(--panel); border-bottom: 1px solid var(--border); padding: 0 12px 8px; }
-.secondrow > summary { cursor: pointer; font-size: 12px; color: var(--muted); padding: 4px 0; }
-.secondrow-body { display: flex; flex-direction: column; gap: 8px; }
-.colmenu, .morefilters { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
-.group-label { font-size: 12px; color: var(--muted); }
-.colmenu-list { display: contents; }
-.col-toggle { font-size: 12px; color: var(--text); display: flex; gap: 4px; align-items: center; cursor: pointer; }
-.morefilters input { flex: 1 1 130px; min-width: 110px; }
+/* Clickable column header cells (filter affordance). Widths come from the
+   shared .c-* classes so header and rows stay aligned. */
+.colhead {
+  background: none;
+  border: 0;
+  padding: 0;
+  font: inherit;
+  color: inherit;
+  cursor: pointer;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.colhead:hover { color: var(--text); text-decoration: underline; }
+/* Filtered columns carry an accent marker + tooltip (see updateHeaderStates). */
+.colhead.col-filtered { color: var(--accent); font-weight: 700; text-decoration: underline; }
+
+/* Shared column popover, anchored under the clicked header (position:fixed,
+   placed from the anchor rect in JS). One container, content rebuilt per
+   column; the `hidden` rule must beat the flex layout (cf. timepop bug). */
+.colheader-wrap { position: relative; }
+.colpop {
+  position: fixed;
+  z-index: 30;
+  min-width: 250px;
+  max-width: 320px;
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.5);
+}
+.colpop[hidden] { display: none; }
+.pop-title { font-size: 12px; font-weight: 600; color: var(--muted); }
+.pop-field { display: flex; flex-direction: column; gap: 4px; font-size: 12px; color: var(--muted); }
+.pop-field input[type="text"] { width: 100%; }
+.pop-actions { display: flex; gap: 8px; }
+.col-toggle { font-size: 12px; color: var(--text); display: flex; gap: 6px; align-items: center; cursor: pointer; }
 
 .badge {
   display: inline-block;

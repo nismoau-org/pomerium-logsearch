@@ -19,10 +19,10 @@
 - Preserve raw JSON for expand/collapse
 
 ## 4) UI
-- Header: container (fixed to `pomerium`), Follow/Pause, Clear, Search + regex, Level dropdown (all/trace/debug/info/warn/error)
-- Quick filters (prominent): allow/deny tri-state, allow/deny reason contains, user/email, path/host, response-code (exact or partial)
-- Main: virtualized list (newest at bottom), compact rows with badges; click to expand full JSON with copy buttons for: request-id/check-request-id, user, email, path, host, authority, route-id
-- Footer: buffer size/count, connection status (connected/connecting/reconnecting/error), last timestamp
+- Header: container label (fixed at startup), Follow/Pause, Sort asc/desc, Jump to live, Time-range calendar popup, Clear, Search + regex, Level dropdown
+- Quick filters (prominent): allow/deny tri-state, allow/deny reason contains, user/email, path/host, response-code; "more filters" row: service, request-id, method, message, time; Columns menu toggling the 11-column union grid (time, level, service, decision, code, user, path, method, host, req-id, message)
+- Main: virtualized list (newest at bottom by default), compact rows with badges; click to expand full JSON with copy buttons for: request-id/check-request-id, user, email, path, host, authority, route-id, upstream-cluster
+- Footer: buffer size/count, connection status (connected/connecting/reconnecting/error), last timestamp, visible count
 
 ## 5) API
 - `GET /` - UI
@@ -42,7 +42,7 @@
 4. HTTP endpoints (`/api/buffer`, `WS /ws`)
 5. Frontend: virtualized list + filters + search + expand/collapse
 6. Dockerfile (multi-stage build)
-7. **Deployment via docker compose**: ship `docker-compose.yml` at repo root (pulls the prebuilt GHCR image — no `build:` section, so the file is paste-ready for Portainer stacks; publish `127.0.0.1:8081:8081` only, `POMERIUM_CONTAINER` env with `${POMERIUM_CONTAINER:-pomerium}` default, `TAG` env selecting the image tag with `${TAG:-edge}` default, `BUFFER_SIZE`/`INIT_TAIL` env, `read_only` + `no-new-privileges` hardening) plus `docker-compose.build.yml` (developer override layering `build: .` back on for `docker compose -f docker-compose.yml -f docker-compose.build.yml up -d --build`) and document one-command usage in README (`POMERIUM_CONTAINER=<name> docker compose up -d` → open `http://127.0.0.1:8081`)
+7. **Deployment via docker compose**: ship `docker-compose.yml` at repo root (pulls the prebuilt GHCR image — no `build:` section, so the file is paste-ready for Portainer stacks; publish `${HOST_BIND:-127.0.0.1}:8081:8081` (loopback default), `POMERIUM_CONTAINER` env with `${POMERIUM_CONTAINER:-pomerium}` default, `TAG` env selecting the image tag with `${TAG:-edge}` default, `BIND_ADDR` + `ALLOW_REMOTE` (in-container bind opt-in), `BUFFER_SIZE`/`INIT_TAIL` env, `read_only` + `no-new-privileges` hardening, `user: "0:0"` for socket access) plus `docker-compose.build.yml` (developer override layering `build: .` back on for `docker compose -f docker-compose.yml -f docker-compose.build.yml up -d --build`) and document one-command usage in README (`POMERIUM_CONTAINER=<name> docker compose up -d` → open `http://127.0.0.1:8081`)
 8. Tests (see [TESTS.md](TESTS.md)): unit (parsing, ring buffer, filters, broadcaster), HTTP/WS tests (`httptest`), integration tests behind `//go:build integration` tag
 9. GitHub Actions CI/CD (see [CI-CD.md](CI-CD.md)): `ci.yml` (vet/fmt/test + docker build + integration job + gitleaks) and `release.yml` (push image to GHCR on `main` and `v*` tags); compose file verified in CI via `docker compose config`
 10. `LICENSE` (MIT), `.gitignore` (secrets/binaries per [SECURITY.md](SECURITY.md)), `.dockerignore`, README + docs

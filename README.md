@@ -8,10 +8,10 @@ Provide a local-only web UI to tail and search JSON logs emitted by Pomerium (ru
 ## Key decisions
 - Source: Docker container running Pomerium (name configurable via `POMERIUM_CONTAINER`, default `pomerium`)
 - Run mode: Docker container (self-contained), mounted with `/var/run/docker.sock`
-- Bind: `127.0.0.1:8081` (localhost-only)
+- Bind: `127.0.0.1:8081` (localhost-only; `HOST_BIND` deploy-time override exists — LAN exposure is at your own risk, see Security)
 - Buffer: in-memory ring buffer (last 10k lines), initial load 1000 lines, no persistence
-- Priority filters: allow/deny + reason, user/email, path/host, response-code
-- UI: Vanilla JS, virtualized list, WebSocket for live tail, embedded static files
+- Filters: allow/deny + reason, user/email, path/host, response-code, service, request-id, method, message, time substring, absolute time-range picker (all client-side, AND-combined)
+- UI: Vanilla JS, virtualized list, WebSocket live tail, sort asc/desc, jump-to-live, toggleable columns, embedded static files
 
 ## Quickstart (docker compose)
 1. Pull and run the prebuilt image (no build step — this `docker-compose.yml`
@@ -30,9 +30,9 @@ docker compose -f docker-compose.yml -f docker-compose.build.yml up -d --build
 ```
 
 Notes:
-- The UI is published on host loopback only (`127.0.0.1:8081`); never change it to `0.0.0.0`.
-- The compose file mounts `/var/run/docker.sock` (root-equivalent) — trusted hosts only.
-- See [docker-compose.yml](docker-compose.yml) for all options (`BUFFER_SIZE`, `INIT_TAIL`, bind address).
+- The UI is published on host loopback only (`127.0.0.1:8081`) via `HOST_BIND` (default); setting `HOST_BIND=0.0.0.0` exposes an unauthenticated UI to the LAN — prefer an authenticated reverse proxy or SSH tunnel instead.
+- The compose file mounts `/var/run/docker.sock` (root-equivalent) and runs as `user: "0:0"` (required for socket access) — trusted hosts only.
+- See [docker-compose.yml](docker-compose.yml) for all options (`POMERIUM_CONTAINER`, `TAG`, `HOST_BIND`, `BIND_ADDR`, `ALLOW_REMOTE`, `BUFFER_SIZE`, `INIT_TAIL`).
 
 ## Security
 - Localhost-only (`127.0.0.1`)

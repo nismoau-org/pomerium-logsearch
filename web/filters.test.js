@@ -63,24 +63,26 @@ describe("matchFilters", () => {
     assert.equal(matchFilters(e, { ...pass, path: "other" }), false);
   });
 
-  it("covers every column (service, reqid, method, message, time)", () => {
+  it("covers every column (service, reqid, method, host, message, time)", () => {
     const e = entry(
       {
         level: "info",
         service: "envoy",
         "request-id": "abc-123",
         method: "GET",
+        authority: "example.com",
         message: "http-request",
         time: "2026-10-04T12:20:40Z",
       },
       "raw",
     );
     e.ts = "2026-10-04T12:20:40Z";
-    const full = { service: "env", reqid: "abc", method: "get", message: "http", time: "12:20" };
+    const full = { service: "env", reqid: "abc", method: "get", host: "example", message: "http", time: "12:20" };
     assert.equal(matchFilters(e, full), true);
     assert.equal(matchFilters(e, { ...full, service: "authorize" }), false);
     assert.equal(matchFilters(e, { ...full, reqid: "zzz" }), false);
     assert.equal(matchFilters(e, { ...full, method: "post" }), false);
+    assert.equal(matchFilters(e, { ...full, host: "other" }), false);
     assert.equal(matchFilters(e, { ...full, message: "boom" }), false);
     assert.equal(matchFilters(e, { ...full, time: "2024" }), false);
     // missing criteria pass (backward compatible with older filter objects)

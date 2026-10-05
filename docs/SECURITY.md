@@ -11,7 +11,7 @@ Hygiene and security requirements for `pomerium-logsearch`. The project is **gen
   - never persist log content to disk (in-memory only, as decided)
   - never forward logs outside the host (no telemetry, no analytics, no external endpoints)
   - treat all log data as potentially sensitive in the UI (local-only bind)
-- **CI secrets**: GitHub Actions uses only the built-in `GITHUB_TOKEN` for GHCR. No long-lived registry passwords, no personal access tokens committed as repo secrets unless required; document rotation if added.
+- **CI secrets**: GitHub Actions uses the built-in `GITHUB_TOKEN` for GHCR plus `GITLEAKS_LICENSE` (repo/org secret from gitleaks.io — required by `gitleaks-action@v3` for organization repos). No long-lived registry passwords, no other personal access tokens; rotate the license secret if it is ever exposed and document rotation if more secrets are added.
 - **Pre-commit (optional but recommended)**: `gitleaks` / `detect-secrets` pre-commit hook to block accidental key commits before they reach history (history rewriting after a leak is painful).
 - **If a secret is ever committed**: rotate it immediately, then purge from history (`git filter-repo` or BFG) and force-push only after rotation — rotation comes first.
 
@@ -50,25 +50,26 @@ Hygiene and security requirements for `pomerium-logsearch`. The project is **gen
 
 ## 5) Publishing hygiene (source safety)
 
-Repo status: currently **private** (`nismoau-org/pomerium-logsearch`); hygiene rules below apply regardless, and must be re-verified if the repo is ever made public.
+Repo status: now **public** (`nismoau-org/pomerium-logsearch`); hygiene rules below apply on an ongoing basis.
 
-- Before making the repo public (or as ongoing practice while private):
-  - [ ] `git log` contains no secrets/internal info (fresh repo preferred)
-  - [ ] `grep` repo for keys/tokens (`gitleaks detect .` clean)
-  - [ ] docs contain no internal hostnames/IPs/container names
-  - [ ] sample fixtures anonymized
-  - [ ] LICENSE (MIT) present, README states local-only + docker-socket caveat
-- Ongoing: CI secret scanning (e.g. `gitleaks` step in `ci.yml` — see checklist below).
+- Pre-publish checklist (executed on release; re-verify per release):
+  - [x] `git log` contains no secrets/internal info (`gitleaks detect` clean over history)
+  - [x] `grep` repo for keys/tokens (`gitleaks detect .` clean)
+  - [x] docs contain no internal hostnames/IPs/container names (generic examples only: `pomerium`, `example.com`, `127.0.0.1`)
+  - [x] sample fixtures anonymized (synthetic `alice@example.com` / `example.com` only)
+  - [x] LICENSE (MIT) present, README states local-only + docker-socket caveat
+- Ongoing: CI secret scanning (`gitleaks-action@v3` step in `ci.yml` — requires the `GITLEAKS_LICENSE` repo/org secret).
 
 ## Implementation checklist
-- [ ] `.gitignore` includes `.env`, `*.pem`, `*.key`, `*.crt`, `credentials*`, `docker-compose.override.yml`
-- [ ] Add `gitleaks` (or similar) scan step to `ci.yml`
+- [x] `.gitignore` includes `.env`, `*.pem`, `*.key`, `*.crt`, `credentials*`, `docker-compose.override.yml`
+- [x] Add `gitleaks-action@v3` scan step to `ci.yml` (with `GITLEAKS_LICENSE` repo/org secret)
 - [ ] Optional: pre-commit hook with secret scanning
-- [ ] Add MIT `LICENSE`
-- [ ] Generic naming throughout docs/code: container example = `pomerium`, hosts = `example.com`, IPs = `127.0.0.1` only
-- [ ] Env/flag config for container name (`POMERIUM_CONTAINER` / `--container`)
-- [ ] README security section: docker socket caveat + localhost-only guarantee
-- [ ] Bind guard: refuse non-loopback bind without explicit override flag
-- [ ] Line-size cap + defensive JSON parsing
-- [ ] `go.sum` committed; `govulncheck ./...` run before releases
-- [ ] Pre-publish checklist (section 5) executed before making repo public
+- [x] Add MIT `LICENSE`
+- [x] Generic naming throughout docs/code: container example = `pomerium`, hosts = `example.com`, IPs = `127.0.0.1` only
+- [x] Env/flag config for container name (`POMERIUM_CONTAINER` / `--container`)
+- [x] README security section: docker socket caveat + localhost-only guarantee
+- [x] Bind guard: refuse non-loopback bind without explicit override flag (`--allow-remote` / `ALLOW_REMOTE`)
+- [x] Line-size cap + defensive JSON parsing
+- [x] `go.sum` committed
+- [ ] `govulncheck ./...` run before releases
+- [x] Pre-publish checklist (section 5) executed before making repo public

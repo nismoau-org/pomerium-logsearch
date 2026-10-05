@@ -36,7 +36,7 @@ let backoff = 1000;
 let renderQueued = false;
 
 const filters = { level: "all", decision: "all", reason: "", user: "", path: "", code: "",
-  service: "", reqid: "", method: "", message: "", time: "", timeFrom: null, timeTo: null };
+  service: "", reqid: "", method: "", host: "", message: "", time: "", timeFrom: null, timeTo: null };
 let search = "";
 let isRegex = false;
 const timeRange = { fromMs: null, toMs: null };
@@ -44,20 +44,26 @@ const timeRange = { fromMs: null, toMs: null };
 // Column registry: the grid is the union of known normalized fields across
 // service types (authorize/envoy/other). Rows render blanks for keys they
 // lack, so heterogeneous schemas share one stable layout. `on` is the
-// default visibility; user toggles persist to localStorage.
+// default visibility (persisted); `kind` selects the header-popup editor:
+// text (contains input), level (dropdown), decision (tri-state + reason),
+// time (presets + calendar range). `key` is the filters.js field.
 const COLUMNS = [
-  { id: "time", label: "Time", cls: "c-time", on: true },
-  { id: "level", label: "Level", cls: "c-level", on: true },
-  { id: "service", label: "Service", cls: "c-svc", on: true },
-  { id: "decision", label: "Decision", cls: "c-dec", on: true },
-  { id: "code", label: "Code", cls: "c-code", on: true },
-  { id: "user", label: "User", cls: "c-user", on: true },
-  { id: "path", label: "Path", cls: "c-path", on: true },
-  { id: "method", label: "Method", cls: "c-method", on: false },
-  { id: "host", label: "Host", cls: "c-host", on: false },
-  { id: "reqid", label: "Req ID", cls: "c-reqid", on: false },
-  { id: "message", label: "Message", cls: "c-msg", on: true },
+  { id: "time", label: "Time", cls: "c-time", on: true, kind: "time" },
+  { id: "level", label: "Level", cls: "c-level", on: true, kind: "level" },
+  { id: "service", label: "Service", cls: "c-svc", on: true, kind: "text", key: "service", hint: "Contains match over service" },
+  { id: "decision", label: "Decision", cls: "c-dec", on: true, kind: "decision" },
+  { id: "code", label: "Code", cls: "c-code", on: true, kind: "text", key: "code", hint: "Contains match over response code" },
+  { id: "user", label: "User", cls: "c-user", on: true, kind: "text", key: "user", hint: "Contains match over user and email" },
+  { id: "path", label: "Path", cls: "c-path", on: true, kind: "text", key: "path", hint: "Contains match over path, host and authority" },
+  { id: "method", label: "Method", cls: "c-method", on: false, kind: "text", key: "method", hint: "Contains match over method" },
+  { id: "host", label: "Host", cls: "c-host", on: false, kind: "text", key: "host", hint: "Contains match over host and authority" },
+  { id: "reqid", label: "Req ID", cls: "c-reqid", on: false, kind: "text", key: "reqid", hint: "Contains match over request-id" },
+  { id: "message", label: "Message", cls: "c-msg", on: true, kind: "text", key: "message", hint: "Contains match over message" },
 ];
+
+function colById(id) {
+  return COLUMNS.find((c) => c.id === id);
+}
 
 function loadPrefs() {
   try {
@@ -83,9 +89,312 @@ function applyCols() {
   for (const c of COLUMNS) document.body.classList.toggle("hide-col-" + c.id, !c.on);
 }
 
-function initColMenu() {
-  const box = els.colMenu;
-  box.textContent = "";
+// ---------- shared column popover ----------
+ // One popover, content rebuilt per column (or the Columns panel). Choice
+// controls (selects, tri-state, presets, Apply) apply AND close; text inputs
+// apply live (debounced) and close on Enter/Escape/outside-click. Filtered
+// columns carry .col-filtered + a tooltip summary (see updateHeaderStates).
+let popId = null; // open column id, or "columns"
+
+function headBtn(id) {
+  return els.colheader.querySelector(`[data-col="${id}"]`);
+}
+
+function columnActive(col) {
+  switch (col.kind) {
+    case "text": return !!filters[col.key];
+    case "level": return filters.level !== "all";
+    case "decision": return filters.decision !== "all" || !!filters.reason;
+    case "time": return timeRange.fromMs != null || timeRange.toMs != null;
+    default: return false;
+  }
+}
+
+function columnSummary(col) {
+  switch (col.kind) {
+    case "text": {
+      const v = String(filters[col.key] || "");
+      return v.length > 40 ? v.slice(0, 39) + "…" : v;
+    }
+    case "level": return filters.level === "all" ? "" : filters.level;
+    case "decision": {
+      const parts = [];
+      if (filters.decision !== "all") parts.push(filters.decision);
+      if (filters.reason) parts.push(`reason: ${filters.reason}`);
+      return parts.join(", ");
+    }
+    case "time": {
+      const { fromMs, toMs } = timeRange;
+      if (fromMs == null && toMs == null) return "";
+      if (fromMs != null && toMs != null) return `${fmtRangeShort(fromMs)} → ${fmtRangeShort(toMs)}`;
+      if (fromMs != null) return `≥ ${fmtRangeShort(fromMs)}`;
+      return `≤ ${fmtRangeShort(toMs)}`;
+    }
+    default: return "";
+  }
+}
+
+function updateHeaderStates() {
+  for (const col of COLUMNS) {
+    const btn = headBtn(col.id);
+    if (!btn) continue;
+    const active = columnActive(col);
+    btn.classList.toggle("col-filtered", active);
+    const summary = columnSummary(col);
+    const base = `${col.label} — click to filter`;
+    btn.title = active ? `${col.label} — filter: ${summary} (click to edit)` : base;
+    btn.setAttribute("aria-label", active ? `${col.label}, filter active: ${summary}` : base);
+  }
+}
+
+function closePop() {
+  els.colPop.hidden = true;
+  popId = null;
+  els.colsBtn.setAttribute("aria-expanded", "false");
+  for (const col of COLUMNS) {
+    const btn = headBtn(col.id);
+    if (btn) btn.setAttribute("aria-expanded", "false");
+  }
+}
+
+function placePop(anchor) {
+  const r = anchor.getBoundingClientRect();
+  const pop = els.colPop;
+  pop.style.left = Math.max(8, Math.min(r.left, window.innerWidth - 280)) + "px";
+  pop.style.top = Math.min(r.bottom + 6, window.innerHeight - 120) + "px";
+}
+
+function openPop(id, anchor, build) {
+  const pop = els.colPop;
+  pop.textContent = "";
+  pop.appendChild(build());
+  pop.hidden = false;
+  popId = id;
+  placePop(anchor);
+  els.colsBtn.setAttribute("aria-expanded", id === "columns" ? "true" : "false");
+  for (const col of COLUMNS) {
+    const btn = headBtn(col.id);
+    if (btn) btn.setAttribute("aria-expanded", col.id === id ? "true" : "false");
+  }
+  const first = pop.querySelector("input, select, button");
+  if (first) first.focus();
+}
+
+function popTitle(text) {
+  const h = document.createElement("div");
+  h.className = "pop-title";
+  h.textContent = text;
+  return h;
+}
+
+function popError() {
+  const d = document.createElement("div");
+  d.className = "regex-error";
+  d.setAttribute("role", "alert");
+  d.hidden = true;
+  return d;
+}
+
+function setPopError(box, msg) {
+  if (msg) {
+    box.hidden = false;
+    box.textContent = msg;
+  } else {
+    box.hidden = true;
+    box.textContent = "";
+  }
+}
+
+function popActions(clearFn) {
+  const bar = document.createElement("div");
+  bar.className = "pop-actions";
+  const clear = document.createElement("button");
+  clear.type = "button";
+  clear.className = "btn";
+  clear.textContent = "Clear";
+  clear.addEventListener("click", () => {
+    clearFn();
+    refreshAndClose(false);
+  });
+  bar.appendChild(clear);
+  return bar;
+}
+
+// Recompute + refresh header markers; text inputs call this live (debounced
+// recompute), choice controls call refreshAndClose (apply + dismiss).
+function refreshAndClose(close) {
+  updateHeaderStates();
+  updateFooter();
+  if (close) closePop();
+  recompute();
+}
+
+function buildTextEditor(col) {
+  const wrap = document.createElement("div");
+  wrap.style.display = "contents";
+  wrap.appendChild(popTitle(`Filter ${col.label}`));
+  const lab = document.createElement("label");
+  lab.className = "pop-field";
+  lab.appendChild(document.createTextNode(col.hint || `Filter ${col.label}`));
+  const input = document.createElement("input");
+  input.type = "text";
+  input.value = filters[col.key] || "";
+  input.placeholder = `${col.label} contains…`;
+  input.setAttribute("aria-label", `${col.label} filter`);
+  input.addEventListener("input", () => {
+    filters[col.key] = input.value;
+    refreshAndClose(false);
+  });
+  input.addEventListener("keydown", (ev) => {
+    if (ev.key === "Enter") refreshAndClose(true);
+  });
+  lab.appendChild(input);
+  wrap.appendChild(lab);
+  wrap.appendChild(popActions(() => { filters[col.key] = ""; }));
+  return wrap;
+}
+
+function buildLevelEditor(col) {
+  const wrap = document.createElement("div");
+  wrap.style.display = "contents";
+  wrap.appendChild(popTitle("Filter Level"));
+  const lab = document.createElement("label");
+  lab.className = "pop-field";
+  lab.appendChild(document.createTextNode("Level"));
+  const sel = document.createElement("select");
+  for (const [v, t] of [["all", "all levels"], ["trace", "trace"], ["debug", "debug"],
+      ["info", "info"], ["warn", "warn"], ["error", "error"], ["critical", "critical"]]) {
+    const o = document.createElement("option");
+    o.value = v;
+    o.textContent = t;
+    if (filters.level === v) o.selected = true;
+    sel.appendChild(o);
+  }
+  sel.setAttribute("aria-label", "Level filter");
+  sel.addEventListener("change", () => {
+    filters.level = sel.value;
+    refreshAndClose(true);
+  });
+  lab.appendChild(sel);
+  wrap.appendChild(lab);
+  return wrap;
+}
+
+function buildDecisionEditor(col) {
+  const wrap = document.createElement("div");
+  wrap.style.display = "contents";
+  wrap.appendChild(popTitle("Filter Decision"));
+  const seg = document.createElement("div");
+  seg.className = "seg";
+  seg.setAttribute("role", "group");
+  seg.setAttribute("aria-label", "Allow or deny");
+  for (const [v, t] of [["all", "All"], ["allow", "Allow"], ["deny", "Deny"]]) {
+    const b = document.createElement("button");
+    b.type = "button";
+    b.className = "seg-btn" + (filters.decision === v ? " active" : "");
+    b.textContent = t;
+    b.setAttribute("aria-pressed", filters.decision === v ? "true" : "false");
+    b.addEventListener("click", () => {
+      filters.decision = v;
+      refreshAndClose(true);
+    });
+    seg.appendChild(b);
+  }
+  wrap.appendChild(seg);
+  const lab = document.createElement("label");
+  lab.className = "pop-field";
+  lab.appendChild(document.createTextNode("Reason contains (any of the 4 reason fields)"));
+  const input = document.createElement("input");
+  input.type = "text";
+  input.value = filters.reason || "";
+  input.placeholder = "Reason contains…";
+  input.setAttribute("aria-label", "Reason filter");
+  input.addEventListener("input", () => {
+    filters.reason = input.value;
+    refreshAndClose(false);
+  });
+  input.addEventListener("keydown", (ev) => {
+    if (ev.key === "Enter") refreshAndClose(true);
+  });
+  lab.appendChild(input);
+  wrap.appendChild(lab);
+  wrap.appendChild(popActions(() => { filters.decision = "all"; filters.reason = ""; }));
+  return wrap;
+}
+
+function buildTimeEditor() {
+  const wrap = document.createElement("div");
+  wrap.style.display = "contents";
+  wrap.appendChild(popTitle("Filter Time (absolute range)"));
+  const presets = document.createElement("div");
+  presets.className = "time-presets";
+  presets.setAttribute("role", "group");
+  presets.setAttribute("aria-label", "Quick ranges");
+  for (const [v, t] of [["15m", "Last 15 min"], ["1h", "Last 1 hour"], ["24h", "Last 24 hours"],
+      ["7d", "Last 7 days"], ["today", "Today"]]) {
+    const b = document.createElement("button");
+    b.type = "button";
+    b.dataset.range = v;
+    b.textContent = t;
+    b.addEventListener("click", () => applyPreset(v));
+    presets.appendChild(b);
+  }
+  wrap.appendChild(presets);
+  const custom = document.createElement("div");
+  custom.className = "time-custom";
+  const fromLab = document.createElement("label");
+  fromLab.appendChild(document.createTextNode("From "));
+  const from = document.createElement("input");
+  from.type = "datetime-local";
+  from.className = "time-from";
+  from.setAttribute("aria-label", "Range start");
+  from.value = timeRange.fromMs == null ? "" : toLocalInputValue(timeRange.fromMs);
+  fromLab.appendChild(from);
+  const toLab = document.createElement("label");
+  toLab.appendChild(document.createTextNode("To "));
+  const to = document.createElement("input");
+  to.type = "datetime-local";
+  to.className = "time-to";
+  to.setAttribute("aria-label", "Range end");
+  to.value = timeRange.toMs == null ? "" : toLocalInputValue(timeRange.toMs);
+  toLab.appendChild(to);
+  custom.appendChild(fromLab);
+  custom.appendChild(toLab);
+  wrap.appendChild(custom);
+  const err = popError();
+  wrap.appendChild(err);
+  const bar = document.createElement("div");
+  bar.className = "time-actions";
+  const apply = document.createElement("button");
+  apply.type = "button";
+  apply.className = "btn primary";
+  apply.textContent = "Apply";
+  apply.addEventListener("click", () => {
+    const f = from.value ? new Date(from.value).getTime() : null;
+    const t = to.value ? new Date(to.value).getTime() : null;
+    const fromMs = f != null && !Number.isNaN(f) ? f : null;
+    const toMs = t != null && !Number.isNaN(t) ? t : null;
+    if (fromMs != null && toMs != null && fromMs > toMs) {
+      setPopError(err, "Start must be before end.");
+      return;
+    }
+    applyTimeRange(fromMs, toMs);
+  });
+  const clear = document.createElement("button");
+  clear.type = "button";
+  clear.className = "btn";
+  clear.textContent = "Clear";
+  clear.addEventListener("click", () => applyTimeRange(null, null));
+  bar.appendChild(apply);
+  bar.appendChild(clear);
+  wrap.appendChild(bar);
+  return wrap;
+}
+
+function buildColumnsEditor() {
+  const wrap = document.createElement("div");
+  wrap.style.display = "contents";
+  wrap.appendChild(popTitle("Show columns"));
   for (const c of COLUMNS) {
     const lab = document.createElement("label");
     lab.className = "col-toggle";
@@ -101,19 +410,29 @@ function initColMenu() {
     });
     lab.appendChild(cb);
     lab.appendChild(document.createTextNode(" " + c.label));
-    box.appendChild(lab);
+    wrap.appendChild(lab);
   }
+  return wrap;
+}
+
+function openColumnPop(col, anchor) {
+  const builders = { text: buildTextEditor, level: buildLevelEditor, decision: buildDecisionEditor, time: () => buildTimeEditor() };
+  const build = builders[col.kind];
+  if (!build) return;
+  if (popId === col.id && !els.colPop.hidden) {
+    closePop();
+    return;
+  }
+  openPop(col.id, anchor, () => build(col));
 }
 
 const $ = (id) => document.getElementById(id);
 const els = {};
 for (const id of [
-  "containerLabel", "followBtn", "clearBtn", "sortBtn", "liveBtn", "searchInput", "regexToggle",
-  "levelSelect", "decAll", "decAllow", "decDeny", "reasonInput", "userInput",
-  "pathInput", "codeInput", "regexError", "loglist", "logtop", "logrows",
+  "containerLabel", "followBtn", "clearBtn", "sortBtn", "liveBtn", "colsBtn",
+  "resetFiltersBtn", "searchInput", "regexToggle",
+  "regexError", "colheader", "colPop", "loglist", "logtop", "logrows",
   "logbottom", "emptyState", "bufferCount", "connPill", "lastTs", "visibleCount",
-  "colMenu", "serviceInput", "reqidInput", "methodInput", "messageInput", "timeInput",
-  "timeBtn", "timePop", "timeFromInput", "timeToInput", "timeApply", "timeClear", "timeError",
 ]) {
   els[id] = $(id);
 }
@@ -185,6 +504,7 @@ const recompute = debounce(() => {
   applySort();
   regexError = r.regexError || "";
   updateRegexError();
+  updateHeaderStates();
   updateFooter();
   queueRender(true);
 }, DEBOUNCE_MS);
@@ -195,6 +515,7 @@ function recomputeNow(stick = false) {
   applySort();
   regexError = r.regexError || "";
   updateRegexError();
+  updateHeaderStates();
   updateFooter();
   queueRender(stick);
 }
@@ -520,14 +841,26 @@ function scheduleReconnect() {
 
 // ---------- wire up controls ----------
 
-function setDecision(v) {
-  filters.decision = v;
-  for (const [id, val] of [["decAll", "all"], ["decAllow", "allow"], ["decDeny", "deny"]]) {
-    const active = v === val;
-    els[id].classList.toggle("active", active);
-    els[id].setAttribute("aria-pressed", active ? "true" : "false");
-  }
-  recompute();
+function resetColumnFilters() {
+  filters.level = "all";
+  filters.decision = "all";
+  filters.reason = "";
+  filters.user = "";
+  filters.path = "";
+  filters.code = "";
+  filters.service = "";
+  filters.reqid = "";
+  filters.method = "";
+  filters.host = "";
+  filters.message = "";
+  filters.time = "";
+  filters.timeFrom = null;
+  filters.timeTo = null;
+  timeRange.fromMs = null;
+  timeRange.toMs = null;
+  updateHeaderStates();
+  updateFooter();
+  recomputeNow(false);
 }
 
 function setSort(v) {
@@ -554,33 +887,10 @@ function fmtRangeShort(ms) {
   return new Date(ms).toLocaleString([], { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" });
 }
 
-function rangeLabel() {
-  const { fromMs, toMs } = timeRange;
-  if (fromMs == null && toMs == null) return "Time: All time";
-  if (fromMs != null && toMs != null) return `Time: ${fmtRangeShort(fromMs)} → ${fmtRangeShort(toMs)}`;
-  if (fromMs != null) return `Time: ≥ ${fmtRangeShort(fromMs)}`;
-  return `Time: ≤ ${fmtRangeShort(toMs)}`;
-}
-
 function toLocalInputValue(ms) {
   const d = new Date(ms);
   const p = (n) => String(n).padStart(2, "0");
   return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}T${p(d.getHours())}:${p(d.getMinutes())}`;
-}
-
-function setTimeError(msg) {
-  if (msg) {
-    els.timeError.hidden = false;
-    els.timeError.textContent = msg;
-  } else {
-    els.timeError.hidden = true;
-    els.timeError.textContent = "";
-  }
-}
-
-function hideTimePop() {
-  els.timePop.hidden = true;
-  els.timeBtn.setAttribute("aria-expanded", "false");
 }
 
 function applyTimeRange(fromMs, toMs) {
@@ -588,12 +898,7 @@ function applyTimeRange(fromMs, toMs) {
   timeRange.toMs = toMs;
   filters.timeFrom = fromMs;
   filters.timeTo = toMs;
-  els.timeFromInput.value = fromMs == null ? "" : toLocalInputValue(fromMs);
-  els.timeToInput.value = toMs == null ? "" : toLocalInputValue(toMs);
-  els.timeBtn.textContent = rangeLabel();
-  setTimeError("");
-  hideTimePop();
-  recompute();
+  refreshAndClose(true);
 }
 
 function applyPreset(range) {
@@ -613,40 +918,6 @@ function applyPreset(range) {
   }
 }
 
-function applyCustomRange() {
-  const f = els.timeFromInput.value ? new Date(els.timeFromInput.value).getTime() : null;
-  const t = els.timeToInput.value ? new Date(els.timeToInput.value).getTime() : null;
-  const fromMs = f != null && !Number.isNaN(f) ? f : null;
-  const toMs = t != null && !Number.isNaN(t) ? t : null;
-  if (fromMs != null && toMs != null && fromMs > toMs) {
-    setTimeError("Start must be before end.");
-    return;
-  }
-  applyTimeRange(fromMs, toMs);
-}
-
-function initTimePop() {
-  els.timeBtn.addEventListener("click", (ev) => {
-    ev.stopPropagation();
-    const open = els.timePop.hidden;
-    els.timePop.hidden = !open;
-    els.timeBtn.setAttribute("aria-expanded", open ? "true" : "false");
-    if (open) setTimeError("");
-  });
-  els.timePop.addEventListener("click", (ev) => ev.stopPropagation());
-  document.addEventListener("click", (ev) => {
-    if (!ev.target.closest(".timerange-wrap")) hideTimePop();
-  });
-  document.addEventListener("keydown", (ev) => {
-    if (ev.key === "Escape") hideTimePop();
-  });
-  els.timePop.querySelectorAll("[data-range]").forEach((b) => {
-    b.addEventListener("click", () => applyPreset(b.dataset.range));
-  });
-  els.timeApply.addEventListener("click", applyCustomRange);
-  els.timeClear.addEventListener("click", () => applyTimeRange(null, null));
-}
-
 function initControls() {
   els.followBtn.addEventListener("click", () => setFollow(!follow));
   els.sortBtn.addEventListener("click", () => {
@@ -663,6 +934,18 @@ function initControls() {
     expanded = new Set();
     recomputeNow(false);
   });
+  els.colsBtn.addEventListener("click", (ev) => {
+    ev.stopPropagation();
+    if (popId === "columns" && !els.colPop.hidden) {
+      closePop();
+      return;
+    }
+    openPop("columns", els.colsBtn, buildColumnsEditor);
+  });
+  els.resetFiltersBtn.addEventListener("click", () => {
+    closePop();
+    resetColumnFilters();
+  });
   els.searchInput.addEventListener("input", () => {
     search = els.searchInput.value;
     recompute();
@@ -671,36 +954,21 @@ function initControls() {
     isRegex = els.regexToggle.checked;
     recompute();
   });
-  els.levelSelect.addEventListener("change", () => {
-    filters.level = els.levelSelect.value;
-    recompute();
-  });
-  els.decAll.addEventListener("click", () => setDecision("all"));
-  els.decAllow.addEventListener("click", () => setDecision("allow"));
-  els.decDeny.addEventListener("click", () => setDecision("deny"));
-  els.reasonInput.addEventListener("input", () => {
-    filters.reason = els.reasonInput.value;
-    recompute();
-  });
-  els.userInput.addEventListener("input", () => {
-    filters.user = els.userInput.value;
-    recompute();
-  });
-  els.pathInput.addEventListener("input", () => {
-    filters.path = els.pathInput.value;
-    recompute();
-  });
-  els.codeInput.addEventListener("input", () => {
-    filters.code = els.codeInput.value;
-    recompute();
-  });
-  for (const [el, key] of [["serviceInput", "service"], ["reqidInput", "reqid"],
-      ["methodInput", "method"], ["messageInput", "message"], ["timeInput", "time"]]) {
-    els[el].addEventListener("input", () => {
-      filters[key] = els[el].value;
-      recompute();
+  els.colheader.querySelectorAll("[data-col]").forEach((btn) => {
+    btn.addEventListener("click", (ev) => {
+      ev.stopPropagation();
+      const col = colById(btn.dataset.col);
+      if (col) openColumnPop(col, btn);
     });
-  }
+  });
+  els.colPop.addEventListener("click", (ev) => ev.stopPropagation());
+  document.addEventListener("click", (ev) => {
+    if (!ev.target.closest(".colheader-wrap") && ev.target !== els.colsBtn
+        && !ev.target.closest("#colsBtn")) closePop();
+  });
+  document.addEventListener("keydown", (ev) => {
+    if (ev.key === "Escape") closePop();
+  });
   els.loglist.addEventListener("scroll", () => queueRender(false), { passive: true });
   window.addEventListener("resize", () => queueRender(false));
 }
@@ -709,9 +977,8 @@ async function main() {
   loadPrefs();
   applyCols();
   initControls();
-  initColMenu();
-  initTimePop();
   setSort(sortOrder); // sync sort button label + aria with loaded pref
+  updateHeaderStates();
   updateFooter();
   await loadBuffer();
   connectWS();

@@ -17,69 +17,18 @@
     <button id="clearBtn" type="button" class="btn">Clear</button>
     <button id="sortBtn" type="button" class="btn" aria-pressed="false" title="Toggle oldest/newest first">Sort: oldest first</button>
     <button id="liveBtn" type="button" class="btn" title="Jump to the newest logs and resume follow">Jump to live</button>
-    <span class="timerange-wrap">
-      <button id="timeBtn" type="button" class="btn" aria-haspopup="dialog" aria-expanded="false" title="Filter by absolute time range (presets or calendar)">Time: All time</button>
-      <div id="timePop" class="timepop" role="dialog" aria-label="Time range" hidden>
-        <div class="time-presets" role="group" aria-label="Quick ranges">
-          <button type="button" data-range="15m">Last 15 min</button>
-          <button type="button" data-range="1h">Last 1 hour</button>
-          <button type="button" data-range="24h">Last 24 hours</button>
-          <button type="button" data-range="7d">Last 7 days</button>
-          <button type="button" data-range="today">Today</button>
-        </div>
-        <div class="time-custom">
-          <label>From <input id="timeFromInput" type="datetime-local" aria-label="Range start"></label>
-          <label>To <input id="timeToInput" type="datetime-local" aria-label="Range end"></label>
-        </div>
-        <div id="timeError" class="regex-error" role="alert" hidden></div>
-        <div class="time-actions">
-          <button id="timeApply" type="button" class="btn primary">Apply</button>
-          <button id="timeClear" type="button" class="btn">Clear</button>
-        </div>
-      </div>
-    </span>
+    <button id="colsBtn" type="button" class="btn" aria-haspopup="dialog" aria-expanded="false" title="Show or hide columns">Columns</button>
+    <button id="resetFiltersBtn" type="button" class="btn" title="Clear all column filters and the time range">Reset filters</button>
     <input id="searchInput" type="search" placeholder="Search (raw + parsed)…" autocomplete="off" aria-label="Search logs">
     <label class="regex-toggle"><input id="regexToggle" type="checkbox"> Regex</label>
-    <select id="levelSelect" aria-label="Level filter">
-      <option value="all">all levels</option>
-      <option value="trace">trace</option>
-      <option value="debug">debug</option>
-      <option value="info">info</option>
-      <option value="warn">warn</option>
-      <option value="error">error</option>
-      <option value="critical">critical</option>
-    </select>
   </div>
   <div id="regexError" class="regex-error" role="alert" hidden></div>
-  <div class="quickfilters" role="group" aria-label="Quick filters">
-    <div class="seg" role="group" aria-label="Allow or deny">
-      <button id="decAll" type="button" class="seg-btn active" aria-pressed="true">All</button><button id="decAllow" type="button" class="seg-btn" aria-pressed="false">Allow</button><button id="decDeny" type="button" class="seg-btn" aria-pressed="false">Deny</button>
-    </div>
-    <input id="reasonInput" type="text" placeholder="Reason contains…" aria-label="Reason contains">
-    <input id="userInput" type="text" placeholder="User / email…" autocomplete="off" aria-label="User or email filter">
-    <input id="pathInput" type="text" placeholder="Path / host…" autocomplete="off" aria-label="Path or host filter">
-    <input id="codeInput" type="text" placeholder="Code (e.g. 403)…" autocomplete="off" inputmode="numeric" aria-label="Response code filter">
-  </div>
-  <details id="secondRow" class="secondrow">
-    <summary>Columns &amp; more filters</summary>
-    <div class="secondrow-body">
-      <div class="colmenu" role="group" aria-label="Toggle columns">
-        <span class="group-label">Columns:</span>
-        <span id="colMenu" class="colmenu-list"></span>
-      </div>
-      <div class="morefilters" role="group" aria-label="More column filters">
-        <span class="group-label">Filter:</span>
-        <input id="serviceInput" type="text" placeholder="Service…" autocomplete="off" aria-label="Service filter" title="Contains match over service">
-        <input id="reqidInput" type="text" placeholder="Request ID…" autocomplete="off" aria-label="Request ID filter" title="Contains match over request-id and check-request-id">
-        <input id="methodInput" type="text" placeholder="Method…" autocomplete="off" aria-label="Method filter" title="Contains match over method">
-        <input id="messageInput" type="text" placeholder="Message…" autocomplete="off" aria-label="Message filter" title="Contains match over message">
-        <input id="timeInput" type="text" placeholder="Time…" autocomplete="off" aria-label="Time filter" title="Contains match over timestamp, e.g. 12:20 or 2026-10-04">
-      </div>
-    </div>
-  </details>
 </header>
 
-<div id="colheader" class="colheader" aria-hidden="true"><span class="c-time">Time</span><span class="c-level">Level</span><span class="c-svc">Service</span><span class="c-dec">Decision</span><span class="c-code">Code</span><span class="c-user">User</span><span class="c-path">Path</span><span class="c-method">Method</span><span class="c-host">Host</span><span class="c-reqid">Req ID</span><span class="c-msg">Message</span></div>
+<div class="colheader-wrap">
+<div id="colheader" class="colheader" role="row" aria-label="Columns: click a header to filter it"><button type="button" class="colhead c-time" data-col="time" aria-haspopup="dialog">Time</button><button type="button" class="colhead c-level" data-col="level" aria-haspopup="dialog">Level</button><button type="button" class="colhead c-svc" data-col="service" aria-haspopup="dialog">Service</button><button type="button" class="colhead c-dec" data-col="decision" aria-haspopup="dialog">Decision</button><button type="button" class="colhead c-code" data-col="code" aria-haspopup="dialog">Code</button><button type="button" class="colhead c-user" data-col="user" aria-haspopup="dialog">User</button><button type="button" class="colhead c-path" data-col="path" aria-haspopup="dialog">Path</button><button type="button" class="colhead c-method" data-col="method" aria-haspopup="dialog">Method</button><button type="button" class="colhead c-host" data-col="host" aria-haspopup="dialog">Host</button><button type="button" class="colhead c-reqid" data-col="reqid" aria-haspopup="dialog">Req ID</button><button type="button" class="colhead c-msg" data-col="message" aria-haspopup="dialog">Message</button></div>
+<div id="colPop" class="colpop" role="dialog" hidden></div>
+</div>
 <main id="loglist" tabindex="0" aria-label="Log lines, newest at bottom">
   <div id="logspacer">
     <div id="logtop"></div>

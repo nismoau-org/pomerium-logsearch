@@ -5,17 +5,18 @@
 - **Follow/Pause**: toggle (default Follow on). Following pins the view to the live edge (newest rows); Pause disables autoscroll
 - **Sort**: toggle between oldest-first (default, newest at bottom) and newest-first (newest at top). Follow pins to the live edge in either order
 - **Jump to live**: jumps to the newest rows and re-enables Follow
-- **Time range**: popup calendar picker (Kibana-style) with quick presets (Last 15 min / 1 hour / 24 hours / 7 days / Today) plus custom From/To calendar inputs. Applies an absolute range over entry timestamps (AND-combined with all other filters); button shows the active range or "All time". Start-after-end is rejected with an inline error. Ranges are absolute once applied (not sliding) and are not persisted across reloads
+- **Columns**: opens the column-visibility panel (same checkboxes as before, now in a popup)
+- **Reset filters**: clears all column filters and the time range (global Search is separate)
 - **Clear**: clear current view buffer (client-side only)
-- **Search**: full-text input + **Regex** toggle (debounced 150-250ms)
-- **Level**: dropdown with `all`, `trace`, `debug`, `info`, `warn`/`warning`, `error`, `critical`/`fatal`/`panic`
+- **Search**: full-text input + **Regex** toggle (debounced 150-250ms). Cross-column by design — it stays in the toolbar while per-column filters move into the headers
 
-## Quick Filters (prominent, priority)
-- **Allow/Deny**: tri-state selector (`all`/`allow`/`deny`)
-- **Allow/deny reason contains**: text/regex filter over `allow-why-true`, `allow-why-false`, `deny-why-true`, `deny-why-false`
-- **User/Email**: contains filter over `user` and `email`
-- **Path/Host**: contains filter over `path` and `host` (also matches `authority` as fallback)
-- **Response-code**: exact match (e.g. `200`, `401`, `403`, `500`) or partial match
+## Column headers (click to filter)
+Every column header is a button. Clicking one opens a popover anchored under it with that column's editor; there are no standalone filter boxes. Filtered columns show an accent marker plus a tooltip/aria summary of the active value.
+- **Text columns** (Service, Code, User, Path, Method, Host, Req ID, Message): contains-input, applies live (debounced), Enter/Escape/outside-click dismisses, per-column Clear button
+- **Level**: dropdown, applies and dismisses on select
+- **Decision**: All/Allow/Deny tri-state (applies + dismisses) plus Reason-contains input (live)
+- **Time**: quick presets (Last 15 min / 1 hour / 24 hours / 7 days / Today) plus custom From/To calendar inputs with Apply/Clear. Applies an absolute range over entry timestamps; Start-after-end is rejected inline. Ranges are absolute once applied (not sliding) and are not persisted across reloads
+- Choice controls apply-and-dismiss; text inputs apply-live. All predicates are AND-combined with each other and with Search
 
 ## Log Row (compact)
 A static column header row (`Time | Level | Service | Decision | Code | User | Path | Method | Host | Req ID | Message`) sits above the list, sharing the row grid so columns align (scrollbar gutter reserved). It follows the same responsive rules as rows (service/user columns hide on narrow screens).
@@ -30,9 +31,10 @@ The grid is the union of known normalized fields across service types (`authoriz
 - Toggles + sort order persist in `localStorage` (best-effort; private mode falls back to defaults)
 
 ## Column filters
-Every column is filterable (AND semantics with everything else): Level dropdown, Allow/Deny tri-state, Reason/User-Path-Host/Code quick filters, plus the "more filters" row — Service, Request ID (`request-id` + `check-request-id`), Method, Message, Time (substring over the timestamp, e.g. `12:20` or `2026-10-04`). Host/Authority is covered by the Path/Host filter.
+Every column is filterable via its header popup (AND semantics with everything else): Level dropdown, Allow/Deny tri-state + reason, contains inputs for Service / Code / User / Path / Method / Host / Req ID / Message, absolute time-range picker. Host/Authority is covered by both the Path filter (path+host+authority) and the dedicated Host filter (host+authority).
 
-## Expanded View (per row)- Pretty-printed JSON with collapsible fields (or simple scrollable block)
+## Expanded View (per row)
+- Pretty-printed JSON with collapsible fields (or simple scrollable block)
 - Copy buttons for key fields: `request-id`, `check-request-id`, `user`, `email`, `path`, `host`, `authority`, `route-id`, `upstream-cluster`
 
 ## Footer

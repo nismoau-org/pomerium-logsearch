@@ -6,7 +6,7 @@ MVP scope: minimal endpoints. Filtering/search is **client-side only** (browser 
 Serves embedded web UI (static files).
 
 ## GET /api/buffer
-Returns the current in-memory buffer (raw lines). The client applies all filters/search (level, allow/deny, user/email, path/host, response-code, full-text/regex) locally.
+Returns the current in-memory buffer (raw lines). The client applies all filters/search (level, allow/deny + reasons, user/email, path/host, response-code, service, request-id, method, message, time, absolute time range, full-text/regex) locally.
 
 **Query params** (pagination only):
 - `limit` (int, default 1000): max lines to return
