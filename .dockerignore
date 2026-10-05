@@ -1,0 +1,13 @@
+# Files excluded from the Docker build context (smaller image, faster builds).
+
+.git
+.github
+.gitignore
+.env
+docker-compose.override.yml
+*.md
+docs/
+web/node_modules/
+out/
+coverage*.out
+coverage*.html

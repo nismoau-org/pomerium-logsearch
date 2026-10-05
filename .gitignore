@@ -1,0 +1,31 @@
+# pomerium-logsearch .gitignore (see docs/SECURITY.md §1, §5)
+
+# --- Secrets / credentials (never commit) ---
+.env
+*.pem
+*.key
+*.crt
+credentials*
+config.local.yaml
+
+# --- Local compose overrides ---
+docker-compose.override.yml
+
+# --- Built binaries / build output ---
+/pomerium-logsearch
+/out/
+/bin/
+/dist/
+
+# --- Go test / coverage artifacts ---
+coverage.out
+coverage.html
+*.test
+*.prof
+
+# --- OS / IDE ---
+.DS_Store
+.idea/
+.vscode/
+*.swp
+*.swo

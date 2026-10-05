@@ -1,0 +1,60 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>pomerium-logsearch</title>
+<link rel="stylesheet" href="./styles.css">
+</head>
+<body>
+<header class="topbar">
+  <div class="brand">
+    <h1>pomerium-logsearch</h1>
+    <span id="containerLabel" class="container-label" title="Log source container">pomerium</span>
+  </div>
+  <div class="controls">
+    <button id="followBtn" type="button" class="btn primary" aria-pressed="true">Pause</button>
+    <button id="clearBtn" type="button" class="btn">Clear</button>
+    <input id="searchInput" type="search" placeholder="Search (raw + parsed)…" autocomplete="off" aria-label="Search logs">
+    <label class="regex-toggle"><input id="regexToggle" type="checkbox"> Regex</label>
+    <select id="levelSelect" aria-label="Level filter">
+      <option value="all">all levels</option>
+      <option value="trace">trace</option>
+      <option value="debug">debug</option>
+      <option value="info">info</option>
+      <option value="warn">warn</option>
+      <option value="error">error</option>
+      <option value="critical">critical</option>
+    </select>
+  </div>
+  <div id="regexError" class="regex-error" role="alert" hidden></div>
+  <div class="quickfilters" role="group" aria-label="Quick filters">
+    <div class="seg" role="group" aria-label="Allow or deny">
+      <button id="decAll" type="button" class="seg-btn active" aria-pressed="true">All</button><button id="decAllow" type="button" class="seg-btn" aria-pressed="false">Allow</button><button id="decDeny" type="button" class="seg-btn" aria-pressed="false">Deny</button>
+    </div>
+    <input id="reasonInput" type="text" placeholder="Reason contains…" aria-label="Reason contains">
+    <input id="userInput" type="text" placeholder="User / email…" autocomplete="off" aria-label="User or email filter">
+    <input id="pathInput" type="text" placeholder="Path / host…" autocomplete="off" aria-label="Path or host filter">
+    <input id="codeInput" type="text" placeholder="Code (e.g. 403)…" autocomplete="off" inputmode="numeric" aria-label="Response code filter">
+  </div>
+</header>
+
+<main id="loglist" tabindex="0" aria-label="Log lines, newest at bottom">
+  <div id="logspacer">
+    <div id="logtop"></div>
+    <div id="logrows"></div>
+    <div id="logbottom"></div>
+  </div>
+  <div id="emptyState" class="empty" hidden>No log lines match the current filters.</div>
+</main>
+
+<footer class="statusbar">
+  <span id="bufferCount">buffer: 0 / 0</span>
+  <span id="connPill" class="pill connecting">connecting</span>
+  <span id="lastTs">last: —</span>
+  <span id="visibleCount">showing 0 / 0</span>
+</footer>
+
+<script type="module" src="./app.js"></script>
+</body>
+</html>
