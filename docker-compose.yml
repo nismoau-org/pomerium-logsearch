@@ -24,7 +24,13 @@ services:
     image: ghcr.io/nismoau-org/pomerium-logsearch:${TAG:-edge}
     container_name: pomerium-logsearch
     ports:
-      - "127.0.0.1:8081:8081" # host loopback only — never expose publicly
+      # Host interface published on. Default loopback-only (localhost-only UI —
+      # never reachable from other hosts). Override at deploy time, e.g. in
+      # Portainer: add stack env var HOST_BIND=0.0.0.0 (whole LAN, no auth!) or
+      # HOST_BIND=<lan-ip> (one interface). LAN exposure is at your own risk:
+      # the app has no authentication (see docs/SECURITY.md); prefer an
+      # authenticated reverse proxy or SSH tunnel instead.
+      - "${HOST_BIND:-127.0.0.1}:8081:8081"
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock
     environment:
