@@ -1,0 +1,13 @@
+# Gitleaks config: auto-loaded from the repo root by `gitleaks detect`
+# (including the CI `security` job).
+#
+# Documented false positives live here — each entry names the exact constant
+# and why it is not a secret. Never allowlist real credentials; rotate those
+# instead (see docs/SECURITY.md).
+
+[allowlist]
+description = "RFC 6455 Sec-WebSocket-Key worked example (x3JJHMbDL1EzLkh9GBhXDw==). A handshake nonce sent in cleartext on every WebSocket upgrade by design — public, not a credential. Historical README troubleshooting contained the RFC's own example value; current docs generate a fresh nonce per command."
+regexTarget = "secret"
+regexes = [
+  "x3JJHMbDL1EzLkh9GBhXDw==",
+]

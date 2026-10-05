@@ -43,7 +43,12 @@ Notes:
 ## Troubleshooting
 - **Refuses to start**: `refusing to bind non-loopback address "0.0.0.0:8081"` — the shipped compose already sets the required `ALLOW_REMOTE=true`; if you see this you are running an old stack file or a bare binary without `--allow-remote`.
 - **Empty logs** (`/api/buffer` shows `total: 0`): the container can't read the Docker socket (needs `user: "0:0"`, shipped in compose), `POMERIUM_CONTAINER` doesn't match `docker ps` on that host, or the target's log driver keeps no stdout/stderr (check `docker logs <name>` on the host first).
-- **UI stuck on `reconnecting`**: the page loads but the browser's WebSocket upgrade fails. Verify the server is innocent with `curl -i -N -H "Connection: Upgrade" -H "Upgrade: websocket" -H "Sec-WebSocket-Version: 13" -H "Sec-WebSocket-Key: x3JJHMbDL1EzLkh9GBhXDw==" http://<host>:8081/ws` (expect `101`); if that works, something on the network path (VPN, filter, proxy) mangles `Upgrade` headers while passing plain GETs.
+- **UI stuck on `reconnecting`**: the page loads but the browser's WebSocket upgrade fails. Verify the server is innocent (any random nonce works as the key — it is sent in cleartext on every handshake by design, so use a fresh one, never a pasted value):
+  ```sh
+  KEY=$(openssl rand -base64 16)
+  curl -i -N -H "Connection: Upgrade" -H "Upgrade: websocket" -H "Sec-WebSocket-Version: 13" -H "Sec-WebSocket-Key: $KEY" http://<host>:8081/ws
+  ```
+  Expect `101 Switching Protocols`. If that works, something on the network path (VPN, filter, proxy) mangles `Upgrade` headers while passing plain GETs.
 - **Portainer `listing workers for Build` errors**: the stack file contains a `build:` section — use the shipped pull-only `docker-compose.yml` (set stack env vars instead of editing YAML: `POMERIUM_CONTAINER`, `TAG`, `HOST_BIND`).
 
 ## Documentation

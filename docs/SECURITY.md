@@ -58,7 +58,7 @@ Repo status: now **public** (`nismoau-org/pomerium-logsearch`); hygiene rules be
   - [x] docs contain no internal hostnames/IPs/container names (generic examples only: `pomerium`, `example.com`, `127.0.0.1`)
   - [x] sample fixtures anonymized (synthetic `alice@example.com` / `example.com` only)
   - [x] LICENSE (MIT) present, README states local-only + docker-socket caveat
-- Ongoing: CI secret scanning (`gitleaks-action@v3` step in `ci.yml` — requires the `GITLEAKS_LICENSE` repo/org secret).
+- Ongoing: CI secret scanning (`gitleaks-action@v3` step in `ci.yml` — requires the `GITLEAKS_LICENSE` repo/org secret). Documented false positives (public constants, never real credentials) are allowlisted in `.gitleaks.toml` with a written justification each.
 
 ## Implementation checklist
 - [x] `.gitignore` includes `.env`, `*.pem`, `*.key`, `*.crt`, `credentials*`, `docker-compose.override.yml`
