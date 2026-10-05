@@ -11,15 +11,15 @@
 - **Search**: full-text input + **Regex** toggle (debounced 150-250ms). Cross-column by design — it stays in the toolbar while per-column filters move into the headers
 
 ## Column headers (click to filter)
-Every column header is a button. Clicking one opens a popover anchored under it with that column's editor; there are no standalone filter boxes. Filtered columns show an accent marker plus a tooltip/aria summary of the active value.
-- **Text columns** (Service, Code, User, Path, Method, Host, Req ID, Message): contains-input, applies live (debounced), Enter/Escape/outside-click dismisses, per-column Clear button
-- **Level**: dropdown, applies and dismisses on select
-- **Decision**: All/Allow/Deny tri-state (applies + dismisses) plus Reason-contains input (live)
-- **Time**: quick presets (Last 15 min / 1 hour / 24 hours / 7 days / Today) plus custom From/To calendar inputs with Apply/Clear. Applies an absolute range over entry timestamps; Start-after-end is rejected inline. Ranges are absolute once applied (not sliding) and are not persisted across reloads
+Every column header is a button. There are no standalone filter boxes — only the cross-column Search stays in the toolbar. Filtered columns show an accent marker plus a tooltip/aria summary of the active value.
+- **Text columns** (Service, Code, User, Path, Method, Host, Req ID, Message): clicking swaps the label for an inline input in place, styled distinctly (italic, accent-colored, normal case vs the muted uppercase label). Typing applies live (debounced); Enter applies immediately, Escape/blur/outside-click commits. Works in narrow columns too (text scrolls inside the input).
+- **Level**: dropdown popup, applies and dismisses on select
+- **Decision**: popup with All/Allow/Deny tri-state (applies + dismisses) plus Reason-contains input (live)
+- **Time**: popup with quick presets (Last 15 min / 1 hour / 24 hours / 7 days / Today) plus custom From/To calendar inputs with Apply/Clear. Applies an absolute range over entry timestamps; Start-after-end is rejected inline. Ranges are absolute once applied (not sliding) and are not persisted across reloads
 - Choice controls apply-and-dismiss; text inputs apply-live. All predicates are AND-combined with each other and with Search
 
 ## Log Row (compact)
-A static column header row (`Time | Level | Service | Decision | Code | User | Path | Method | Host | Req ID | Message`) sits above the list, sharing the row grid so columns align (scrollbar gutter reserved). It follows the same responsive rules as rows (service/user columns hide on narrow screens).
+A static column header row (`Time | Level | Service | Decision | Code | User | Path | Method | Host | Req ID | Message`) sits above the list, sharing the row grid so columns align (scrollbar gutter reserved). Rows never wrap: when the enabled columns overflow the viewport the list scrolls horizontally (flexible columns are capped so the width stays bounded) and the header strip follows via transform sync. It follows the same responsive rules as rows (service/user columns hide on narrow screens).
 Each row displays (left-to-right): time + level (color-coded) + service + allow/deny badge + response-code + user/email + path + short message. Click row to expand full JSON view. 
 - **Badges**: allow/deny shown with short reason when applicable
 - **Truncation**: long messages truncated in compact view; full content visible in expanded JSON

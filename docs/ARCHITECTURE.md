@@ -7,6 +7,7 @@
 - **Broadcaster**: fan-out new log lines to connected WebSocket clients; handle subscribe/unsubscribe cleanly
 - **HTTP server**: serves embedded static UI and REST endpoints; binds `127.0.0.1:8081` by default, refuses non-loopback binds unless `ALLOW_REMOTE`/`--allow-remote` is set (see [SECURITY.md](SECURITY.md))
 - **Resilience**: reconnect to Docker stream on error/container restart with exponential backoff; emit status messages over WebSocket
+- **History semantics**: first connect replays `INIT_TAIL` daemon-kept lines (default 1000; bounded by the daemon's log retention), then follows live; reconnects use `Tail=100` to avoid reflooding. The ring is in-memory only — restarting this container replays just the `INIT_TAIL` window again. Nothing is ever persisted
 
 ## Frontend
 - **Embedded assets**: `index.html`, `app.js`, `styles.css` embedded via `go:embed` (no build step for MVP)

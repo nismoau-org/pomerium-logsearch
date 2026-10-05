@@ -83,7 +83,7 @@ Run against real Pomerium container `pomerium`:
 6. Search: plain text finds matches; regex toggle works; invalid regex shows error
 7. Level header popup: dropdown filters correctly, dismisses on select, header shows marker
 8. Decision header popup: Allow/Deny tri-state + reason input filter authorize logs; header shows marker
-9. User/Path/Code header popups: contains-inputs filter live; Enter/Escape/outside-click dismisses; per-column Clear works
+9. Text header inline edit: click User/Path/Code header, type to filter live, Enter/Escape/outside-click commits back to label with marker
 10. Click row → full JSON expands; copy buttons work (request-id, user, path, host)
 11. Restart Pomerium container → UI reconnects, streaming resumes (status shows reconnecting → connected)
 12. Restart UI container → buffer refills from initial tail
@@ -91,8 +91,8 @@ Run against real Pomerium container `pomerium`:
 14. High-volume check: burst logs remain responsive (scroll/search smooth)
 15. Sort toggle: newest-first puts newest at top; oldest-first restores newest at bottom; follow pins to the live edge in both orders
 16. Jump to live: after scrolling away (paused), jumps to newest rows and resumes follow
-17. Columns button: popup toggles Method/Host/Req ID (and back); blanks render for rows lacking the key; toggles + sort survive reload via localStorage
-18. Service/Req ID/Method/Host/Message header popups each narrow the list (AND with search)
+17. Columns button: enable all columns → list scrolls horizontally (no wrapping/clipping), header stays aligned while scrolling; blanks render for rows lacking the key; toggles + sort survive reload via localStorage
+18. Service/Req ID/Method/Host/Message headers: click to edit inline, each narrows the list (AND with search)
 19. Time header popup: starts collapsed with live tail following; preset (e.g. Last 1 hour) narrows to that window; custom From/To via calendar works; Start-after-end shows an error; Apply/Clear/Escape closes the popup; Reset filters clears everything
 
 ## 7) Performance checks (informal)

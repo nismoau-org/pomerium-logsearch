@@ -111,22 +111,30 @@ input.invalid { border-color: var(--red); outline: 1px solid var(--red); }
 #loglist {
   flex: 1;
   overflow-y: auto;
+  overflow-x: auto; /* wide grids (all columns on) scroll horizontally */
   scrollbar-gutter: stable; /* reserve gutter so columns align with .colheader */
   font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
   font-size: 12px;
   position: relative;
 }
-#logrows { display: flex; flex-direction: column; }
+/* Shrink-to-fit (but at least full width) so overflowing rows create a
+   horizontal scrollbar instead of wrapping or clipping. */
+#logrows { display: flex; flex-direction: column; width: max-content; min-width: 100%; }
 
 /* Column header: static (outside the scroll container so virtualization math
-   is untouched), same grid as .row so columns line up. */
+   is untouched), same grid as .rowline so columns line up. .colheader clips;
+   .colheader-in is shifted via transform in JS to follow horizontal scroll. */
 .colheader {
+  background: var(--panel);
+  border-bottom: 1px solid var(--border);
+  overflow: hidden;
+  flex: 0 0 auto;
+}
+.colheader-in {
   display: flex;
   align-items: center;
   gap: 8px;
   padding: 4px 10px;
-  background: var(--panel);
-  border-bottom: 1px solid var(--border);
   font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
   font-size: 11px;
   font-weight: 600;
@@ -134,26 +142,31 @@ input.invalid { border-color: var(--red); outline: 1px solid var(--red); }
   letter-spacing: 0.04em;
   color: var(--muted);
   white-space: nowrap;
-  overflow: hidden;
-  flex: 0 0 auto;
+  width: max-content;
+  min-width: 100%;
+  will-change: transform;
 }
-.colheader span { overflow: hidden; text-overflow: ellipsis; }
 
+/* Log rows never wrap: cells keep their grid widths and the list scrolls
+   horizontally when they overflow (previously wrap + fixed height clipped
+   wrapped cells, mangling the row when all columns were enabled). */
 .row {
+  border-bottom: 1px solid #1c2128;
+  cursor: pointer;
+  overflow: hidden;
+  height: var(--row-h);
+}
+.rowline {
   display: flex;
   align-items: center;
   gap: 8px;
   height: var(--row-h);
   padding: 0 10px;
-  border-bottom: 1px solid #1c2128;
   white-space: nowrap;
-  overflow: hidden;
-  cursor: pointer;
-  flex-wrap: wrap;
 }
-.row:has(.detail) { height: auto; align-items: flex-start; padding-top: 4px; }
+.rowline > * { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+.row:has(.detail) { height: auto; }
 .row:hover { background: #161d27; }
-.row span { overflow: hidden; text-overflow: ellipsis; }
 
 .c-time { color: var(--muted); flex: 0 0 96px; }
 .c-level { flex: 0 0 64px; text-align: center; }
@@ -161,11 +174,11 @@ input.invalid { border-color: var(--red); outline: 1px solid var(--red); }
 .c-dec { flex: 0 0 150px; }
 .c-code { flex: 0 0 44px; text-align: right; color: var(--amber); }
 .c-user { flex: 0 0 160px; }
-.c-path { flex: 0 1 220px; color: var(--muted); }
+.c-path { flex: 0 1 220px; max-width: 340px; color: var(--muted); }
 .c-method { flex: 0 0 62px; }
-.c-host { flex: 0 1 150px; color: var(--muted); }
+.c-host { flex: 0 1 150px; max-width: 250px; color: var(--muted); }
 .c-reqid { flex: 0 0 130px; color: var(--muted); }
-.c-msg { flex: 1 1 200px; }
+.c-msg { flex: 1 1 200px; max-width: 900px; }
 
 /* Column visibility toggles (body.hide-col-<id> set from the Columns menu).
    Applies to both the header row and log rows since they share classes. */
@@ -184,12 +197,34 @@ input.invalid { border-color: var(--red); outline: 1px solid var(--red); }
   color: inherit;
   cursor: pointer;
   white-space: nowrap;
+  min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
 }
 .colhead:hover { color: var(--text); text-decoration: underline; }
 /* Filtered columns carry an accent marker + tooltip (see updateHeaderStates). */
 .colhead.col-filtered { color: var(--accent); font-weight: 700; text-decoration: underline; }
+
+/* Inline header editing (text columns): the label hides and a distinctly
+   styled input takes its place — italic, accent-colored, normal case, versus
+   the muted uppercase header label. NOTE: no display: rule on .colhead-input
+   (it would override the hidden attribute — same bug class as timepop). */
+.colhead.editing { display: inline-flex; align-items: center; }
+.colhead.editing .colhead-label { display: none; }
+.colhead-label { overflow: hidden; text-overflow: ellipsis; }
+.colhead-input {
+  flex: 1;
+  min-width: 0;
+  font: inherit;
+  font-style: italic;
+  text-transform: none;
+  letter-spacing: normal;
+  color: var(--accent);
+  background: var(--bg);
+  border: 1px solid var(--accent);
+  border-radius: 4px;
+  padding: 0 4px;
+}
 
 /* Shared column popover, anchored under the clicked header (position:fixed,
    placed from the anchor rect in JS). One container, content rebuilt per

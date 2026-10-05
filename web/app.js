@@ -229,31 +229,6 @@ function refreshAndClose(close) {
   recompute();
 }
 
-function buildTextEditor(col) {
-  const wrap = document.createElement("div");
-  wrap.style.display = "contents";
-  wrap.appendChild(popTitle(`Filter ${col.label}`));
-  const lab = document.createElement("label");
-  lab.className = "pop-field";
-  lab.appendChild(document.createTextNode(col.hint || `Filter ${col.label}`));
-  const input = document.createElement("input");
-  input.type = "text";
-  input.value = filters[col.key] || "";
-  input.placeholder = `${col.label} contains…`;
-  input.setAttribute("aria-label", `${col.label} filter`);
-  input.addEventListener("input", () => {
-    filters[col.key] = input.value;
-    refreshAndClose(false);
-  });
-  input.addEventListener("keydown", (ev) => {
-    if (ev.key === "Enter") refreshAndClose(true);
-  });
-  lab.appendChild(input);
-  wrap.appendChild(lab);
-  wrap.appendChild(popActions(() => { filters[col.key] = ""; }));
-  return wrap;
-}
-
 function buildLevelEditor(col) {
   const wrap = document.createElement("div");
   wrap.style.display = "contents";
@@ -416,7 +391,7 @@ function buildColumnsEditor() {
 }
 
 function openColumnPop(col, anchor) {
-  const builders = { text: buildTextEditor, level: buildLevelEditor, decision: buildDecisionEditor, time: () => buildTimeEditor() };
+  const builders = { level: buildLevelEditor, decision: buildDecisionEditor, time: () => buildTimeEditor() };
   const build = builders[col.kind];
   if (!build) return;
   if (popId === col.id && !els.colPop.hidden) {
@@ -426,12 +401,90 @@ function openColumnPop(col, anchor) {
   openPop(col.id, anchor, () => build(col));
 }
 
+// Inline header editing for text columns: clicking the header swaps the
+// label for an input in place (distinctly styled — see .colhead-input).
+// Typing applies live; Enter applies immediately, Escape/blur/outside-click
+// commits whatever is typed. Rich editors (level/decision/time) stay popups.
+function onHeadClick(col, btn) {
+  if (col.kind === "text") {
+    if (btn.classList.contains("editing")) commitInlineEdit(true);
+    else startInlineEdit(col, btn);
+    return;
+  }
+  openColumnPop(col, btn);
+}
+
+function startInlineEdit(col, btn) {
+  commitInlineEdit();
+  closePop();
+  btn.classList.add("editing");
+  const input = btn.querySelector(".colhead-input");
+  if (!input) return;
+  input.hidden = false;
+  input.focus();
+  input.select();
+  updateHeaderStates();
+}
+
+function commitInlineEdit(applyNow = false) {
+  const btn = els.colheader.querySelector(".colhead.editing");
+  if (!btn) return;
+  const input = btn.querySelector(".colhead-input");
+  if (input) input.hidden = true;
+  btn.classList.remove("editing");
+  updateHeaderStates();
+  if (applyNow) recomputeNow(false);
+}
+
+function initHeaders() {
+  const wrap = els.colheaderIn;
+  wrap.textContent = "";
+  for (const col of COLUMNS) {
+    const b = document.createElement("button");
+    b.type = "button";
+    b.className = `colhead ${col.cls}`;
+    b.dataset.col = col.id;
+    b.setAttribute("aria-haspopup", "dialog");
+    const lab = document.createElement("span");
+    lab.className = "colhead-label";
+    lab.textContent = col.label;
+    b.appendChild(lab);
+    if (col.kind === "text") {
+      const inp = document.createElement("input");
+      inp.type = "text";
+      inp.className = "colhead-input";
+      inp.hidden = true;
+      inp.setAttribute("aria-label", `${col.label} filter`);
+      inp.placeholder = "filter…";
+      if (col.hint) inp.title = col.hint;
+      inp.addEventListener("input", () => {
+        filters[col.key] = inp.value;
+        refreshAndClose(false);
+      });
+      inp.addEventListener("keydown", (ev) => {
+        if (ev.key === "Enter" || ev.key === "Escape") {
+          ev.stopPropagation();
+          commitInlineEdit(ev.key === "Enter");
+        }
+      });
+      inp.addEventListener("blur", () => commitInlineEdit());
+      inp.addEventListener("click", (ev) => ev.stopPropagation());
+      b.appendChild(inp);
+    }
+    b.addEventListener("click", (ev) => {
+      ev.stopPropagation();
+      onHeadClick(col, b);
+    });
+    wrap.appendChild(b);
+  }
+}
+
 const $ = (id) => document.getElementById(id);
 const els = {};
 for (const id of [
   "containerLabel", "followBtn", "clearBtn", "sortBtn", "liveBtn", "colsBtn",
   "resetFiltersBtn", "searchInput", "regexToggle",
-  "regexError", "colheader", "colPop", "loglist", "logtop", "logrows",
+  "regexError", "colheader", "colheaderIn", "colPop", "loglist", "logtop", "logrows",
   "logbottom", "emptyState", "bufferCount", "connPill", "lastTs", "visibleCount",
 ]) {
   els[id] = $(id);
@@ -605,6 +658,10 @@ function render(stick = false) {
   if ((stick || (follow && nearLiveEdge())) && follow) {
     scrollToLive();
   }
+
+  // The header sits outside the scroll container (so virtualization math is
+  // untouched); shift its inner strip to follow horizontal scrolling.
+  els.colheaderIn.style.transform = `translateX(${-els.loglist.scrollLeft}px)`;
 }
 
 function badge(text, cls) {
@@ -631,33 +688,39 @@ function buildRow(e) {
   row.setAttribute("role", "button");
   row.setAttribute("aria-expanded", expanded.has(e.id) ? "true" : "false");
 
-  row.appendChild(cell(fmtTime(e), "c-time"));
+  // Cells live in an inner no-wrap line so overflowing grids scroll
+  // horizontally instead of wrapping (wrap + fixed row height clipped cells).
+  const line = document.createElement("div");
+  line.className = "rowline";
+  row.appendChild(line);
+
+  line.appendChild(cell(fmtTime(e), "c-time"));
   const lvl = str(p.level || "");
   const lb = badge(lvl ? normalizeLevel(lvl) || lvl : "?", levelClass(lvl));
   lb.classList.add("c-level");
-  row.appendChild(lb);
-  row.appendChild(cell(field(p, "service", "svc"), "c-svc"));
+  line.appendChild(lb);
+  line.appendChild(cell(field(p, "service", "svc"), "c-svc"));
 
   const dec = entryDecision(p);
   if (dec === "allow") {
     const b = badge(shortReason(p) ? "allow · " + shortReason(p) : "allow", "allow");
     b.classList.add("c-dec");
-    row.appendChild(b);
+    line.appendChild(b);
   } else if (dec === "deny") {
     const b = badge(shortReason(p) ? "deny · " + shortReason(p) : "deny", "deny");
     b.classList.add("c-dec");
-    row.appendChild(b);
+    line.appendChild(b);
   } else {
-    row.appendChild(cell("", "c-dec"));
+    line.appendChild(cell("", "c-dec"));
   }
 
-  row.appendChild(cell(field(p, "response-code", "status", "code", "statusCode"), "c-code"));
-  row.appendChild(cell(field(p, "user", "email"), "c-user"));
-  row.appendChild(cell(field(p, "path", "host", "authority"), "c-path"));
-  row.appendChild(cell(field(p, "method"), "c-method"));
-  row.appendChild(cell(field(p, "host", "authority"), "c-host"));
-  row.appendChild(cell(field(p, "request-id", "check-request-id"), "c-reqid"));
-  row.appendChild(cell(messageOf(e), "c-msg"));
+  line.appendChild(cell(field(p, "response-code", "status", "code", "statusCode"), "c-code"));
+  line.appendChild(cell(field(p, "user", "email"), "c-user"));
+  line.appendChild(cell(field(p, "path", "host", "authority"), "c-path"));
+  line.appendChild(cell(field(p, "method"), "c-method"));
+  line.appendChild(cell(field(p, "host", "authority"), "c-host"));
+  line.appendChild(cell(field(p, "request-id", "check-request-id"), "c-reqid"));
+  line.appendChild(cell(messageOf(e), "c-msg"));
 
   row.addEventListener("click", (ev) => {
     if (ev.target.closest("button")) return;
@@ -958,16 +1021,20 @@ function initControls() {
     btn.addEventListener("click", (ev) => {
       ev.stopPropagation();
       const col = colById(btn.dataset.col);
-      if (col) openColumnPop(col, btn);
+      if (col) onHeadClick(col, btn);
     });
   });
   els.colPop.addEventListener("click", (ev) => ev.stopPropagation());
   document.addEventListener("click", (ev) => {
     if (!ev.target.closest(".colheader-wrap") && ev.target !== els.colsBtn
         && !ev.target.closest("#colsBtn")) closePop();
+    if (!ev.target.closest(".colhead.editing")) commitInlineEdit();
   });
   document.addEventListener("keydown", (ev) => {
-    if (ev.key === "Escape") closePop();
+    if (ev.key === "Escape") {
+      closePop();
+      commitInlineEdit();
+    }
   });
   els.loglist.addEventListener("scroll", () => queueRender(false), { passive: true });
   window.addEventListener("resize", () => queueRender(false));
@@ -976,6 +1043,7 @@ function initControls() {
 async function main() {
   loadPrefs();
   applyCols();
+  initHeaders();
   initControls();
   setSort(sortOrder); // sync sort button label + aria with loaded pref
   updateHeaderStates();
