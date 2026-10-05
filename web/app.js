@@ -1017,13 +1017,9 @@ function initControls() {
     isRegex = els.regexToggle.checked;
     recompute();
   });
-  els.colheader.querySelectorAll("[data-col]").forEach((btn) => {
-    btn.addEventListener("click", (ev) => {
-      ev.stopPropagation();
-      const col = colById(btn.dataset.col);
-      if (col) onHeadClick(col, btn);
-    });
-  });
+  // Header buttons are wired at creation time in initHeaders() (single source;
+  // a second querySelectorAll pass here would double-fire every click:
+  // open-then-instant-toggle makes clicks look dead with zero errors).
   els.colPop.addEventListener("click", (ev) => ev.stopPropagation());
   document.addEventListener("click", (ev) => {
     if (!ev.target.closest(".colheader-wrap") && ev.target !== els.colsBtn
