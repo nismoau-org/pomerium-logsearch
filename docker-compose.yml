@@ -24,8 +24,7 @@ services:
     image: ghcr.io/nismoau-org/pomerium-logsearch:${TAG:-edge}
     container_name: pomerium-logsearch
     ports:
-      #- "127.0.0.1:8081:8081" # host loopback only — never expose publicly
-      - "0.0.0.0:8081:8081"
+      - "127.0.0.1:8081:8081" # host loopback only — never expose publicly
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock
     environment:
