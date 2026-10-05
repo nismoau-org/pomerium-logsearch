@@ -14,13 +14,20 @@ Provide a local-only web UI to tail and search JSON logs emitted by Pomerium (ru
 - UI: Vanilla JS, virtualized list, WebSocket for live tail, embedded static files
 
 ## Quickstart (docker compose)
-1. Set the Pomerium container name (must match `docker ps` output):
+1. Pull and run the prebuilt image (no build step — this `docker-compose.yml`
+   has no `build:` section, so it is also paste-ready for Portainer stacks):
    ```sh
-   POMERIUM_CONTAINER=<your-pomerium-container> docker compose up -d --build
+   POMERIUM_CONTAINER=<your-pomerium-container> docker compose up -d
    ```
-   Or edit `POMERIUM_CONTAINER` in `docker-compose.yml` (default: `pomerium`).
+   (`POMERIUM_CONTAINER` must match `docker ps` output; default: `pomerium`.
+   `TAG=latest` selects the latest `v*` release instead of the default `edge`.)
 2. Open http://127.0.0.1:8081
 3. Stop with `docker compose down`
+
+Developers — build from source instead of pulling:
+```sh
+docker compose -f docker-compose.yml -f docker-compose.build.yml up -d --build
+```
 
 Notes:
 - The UI is published on host loopback only (`127.0.0.1:8081`); never change it to `0.0.0.0`.

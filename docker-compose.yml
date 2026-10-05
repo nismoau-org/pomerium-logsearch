@@ -1,8 +1,16 @@
 # pomerium-logsearch — easy deployment via docker compose
 #
-# Usage:
-#   docker compose up -d --build
+# Primary path: pull the prebuilt image (no build step, so this file is
+# paste-ready for Portainer stacks and other deployers that dislike `build:`):
+#   POMERIUM_CONTAINER=<your-pomerium-container> docker compose up -d
 #   open http://127.0.0.1:8081
+#
+# Image tag (default `edge` = latest main; `latest` and `x.y` appear after a
+# `v*` release tag — see .github/workflows/release.yml):
+#   TAG=latest docker compose up -d
+#
+# Local build instead of pulling (developers):
+#   docker compose -f docker-compose.yml -f docker-compose.build.yml up -d --build
 #
 # Configuration:
 #   - POMERIUM_CONTAINER: name of the container running Pomerium (see `docker ps`)
@@ -13,8 +21,7 @@
 
 services:
   pomerium-logsearch:
-    build: .
-    image: pomerium-logsearch:local
+    image: ghcr.io/nismoau-org/pomerium-logsearch:${TAG:-edge}
     container_name: pomerium-logsearch
     ports:
       - "127.0.0.1:8081:8081" # host loopback only — never expose publicly
@@ -22,7 +29,7 @@ services:
       - /var/run/docker.sock:/var/run/docker.sock
     environment:
       # Container running Pomerium (override to match `docker ps` output)
-      # e.g. POMERIUM_CONTAINER=<name> docker compose up -d --build
+      # e.g. POMERIUM_CONTAINER=<name> docker compose up -d
       POMERIUM_CONTAINER: ${POMERIUM_CONTAINER:-pomerium}
       # Bind address INSIDE the container (must accept docker-proxy traffic;
       # exposure is controlled by the host loopback port mapping above)

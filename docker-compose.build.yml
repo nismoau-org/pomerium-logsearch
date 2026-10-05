@@ -1,0 +1,16 @@
+# pomerium-logsearch — local-build override for developers.
+#
+# The base docker-compose.yml pulls the prebuilt GHCR image (Portainer-safe:
+# no `build:` section). Layer this file on to build from source instead:
+#   docker compose -f docker-compose.yml -f docker-compose.build.yml up -d --build
+#
+# The built image is tagged locally so the base file's `image:` reference
+# resolves to it. Override TAG to match the base file, e.g.:
+#   TAG=my-branch docker compose -f docker-compose.yml -f docker-compose.build.yml up -d --build
+
+services:
+  pomerium-logsearch:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: ghcr.io/nismoau-org/pomerium-logsearch:${TAG:-edge}
