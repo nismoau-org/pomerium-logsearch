@@ -7,6 +7,7 @@ import {
   levelMatches,
   entryDecision,
   matchFilters,
+  matchTimeRange,
   filterEntries,
 } from "./filters.js";
 
@@ -61,8 +62,57 @@ describe("matchFilters", () => {
     assert.equal(matchFilters(e, { ...pass, code: "500" }), false);
     assert.equal(matchFilters(e, { ...pass, path: "other" }), false);
   });
+
+  it("covers every column (service, reqid, method, message, time)", () => {
+    const e = entry(
+      {
+        level: "info",
+        service: "envoy",
+        "request-id": "abc-123",
+        method: "GET",
+        message: "http-request",
+        time: "2026-10-04T12:20:40Z",
+      },
+      "raw",
+    );
+    e.ts = "2026-10-04T12:20:40Z";
+    const full = { service: "env", reqid: "abc", method: "get", message: "http", time: "12:20" };
+    assert.equal(matchFilters(e, full), true);
+    assert.equal(matchFilters(e, { ...full, service: "authorize" }), false);
+    assert.equal(matchFilters(e, { ...full, reqid: "zzz" }), false);
+    assert.equal(matchFilters(e, { ...full, method: "post" }), false);
+    assert.equal(matchFilters(e, { ...full, message: "boom" }), false);
+    assert.equal(matchFilters(e, { ...full, time: "2024" }), false);
+    // missing criteria pass (backward compatible with older filter objects)
+    assert.equal(matchFilters(e, {}), true);
+  });
 });
 
+describe("matchTimeRange", () => {
+  const e = (ts) => entry({ time: ts }, "raw");
+  const H = 3600000;
+  const base = Date.parse("2026-10-04T12:00:00Z");
+  it("passes everything with no active range", () => {
+    assert.equal(matchTimeRange(e("2026-10-04T12:00:00Z"), null, null), true);
+    assert.equal(matchTimeRange(e("garbage"), null, null), true);
+  });
+  it("enforces closed and open ranges", () => {
+    assert.equal(matchTimeRange(e("2026-10-04T12:00:00Z"), base - H, base + H), true);
+    assert.equal(matchTimeRange(e("2026-10-04T10:00:00Z"), base - H, base + H), false);
+    assert.equal(matchTimeRange(e("2026-10-04T12:00:00Z"), base, null), true);
+    assert.equal(matchTimeRange(e("2026-10-04T11:59:59Z"), base, null), false);
+    assert.equal(matchTimeRange(e("2026-10-04T12:00:00Z"), null, base), true);
+    assert.equal(matchTimeRange(e("2026-10-04T12:00:01Z"), null, base), false);
+  });
+  it("excludes unparseable timestamps only while a range is active", () => {
+    assert.equal(matchTimeRange(e("not-a-time"), base - H, base + H), false);
+  });
+  it("flows through matchFilters as timeFrom/timeTo", () => {
+    const list = [e("2026-10-04T12:00:00Z"), e("2026-10-04T10:00:00Z")];
+    const r = filterEntries(list, { timeFrom: base - H, timeTo: base + H }, "", false);
+    assert.equal(r.visible.length, 1);
+  });
+});
 describe("filterEntries", () => {
   it("combines filters and search, reports invalid regex", () => {
     const list = [

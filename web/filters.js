@@ -82,11 +82,18 @@ function contains(haystack, needle) {
 
 /**
  * matchFilters(entry, f): AND semantics over all predicates.
- * f = { level, decision('all'|'allow'|'deny'), reason, user, path, code }
+ * f = { level, decision('all'|'allow'|'deny'), reason, user, path, code,
+ *       service, reqid, method, message, time }
  * - reason: case-insensitive substring over any of the 4 reason fields
  * - user: over user + email
  * - path: over path + host + authority
  * - code: over response-code / status string (substring)
+ * - service: over service/svc
+ * - reqid: over request-id + check-request-id
+ * - method: over method
+ * - message: over message + msg
+ * - time: over parsed.time + entry ts (e.g. "12:20" or "2026-10-04")
+ * Missing/empty criteria pass. Unknown keys are ignored.
  */
 export function matchFilters(entry, f = {}) {
   const parsed = (entry && entry.parsed) || {};
@@ -129,6 +136,33 @@ export function matchFilters(entry, f = {}) {
     if (!contains(codeVal, String(f.code).trim())) return false;
   }
 
+  if (f.service) {
+    if (!contains(str(parsed.service ?? parsed.svc), f.service)) return false;
+  }
+
+  if (f.reqid) {
+    const hay = `${str(parsed["request-id"])} ${str(parsed["check-request-id"])}`;
+    if (!contains(hay, f.reqid)) return false;
+  }
+
+  if (f.method) {
+    if (!contains(str(parsed.method), f.method)) return false;
+  }
+
+  if (f.message) {
+    const hay = `${str(parsed.message)} ${str(parsed.msg)}`;
+    if (!contains(hay, f.message)) return false;
+  }
+
+  if (f.time) {
+    const hay = `${str(parsed.time)} ${str(entry && entry.ts)}`;
+    if (!contains(hay, f.time)) return false;
+  }
+
+  if (f.timeFrom != null || f.timeTo != null) {
+    if (!matchTimeRange(entry, f.timeFrom, f.timeTo)) return false;
+  }
+
   return true;
 }
 
@@ -154,6 +188,28 @@ function safeStringify(v) {
   } catch {
     return String(v);
   }
+}
+
+/**
+ * matchTimeRange(entry, fromMs, toMs): absolute range over the entry
+ * timestamp (parsed.time, falling back to entry ts). Null bounds are open.
+ * No active range -> true. Entries without a parseable timestamp are
+ * excluded while a range is active (they cannot satisfy it).
+ */
+export function matchTimeRange(entry, fromMs, toMs) {
+  if (fromMs == null && toMs == null) return true;
+  const t = entryTimeMs(entry);
+  if (Number.isNaN(t)) return false;
+  if (fromMs != null && t < fromMs) return false;
+  if (toMs != null && t > toMs) return false;
+  return true;
+}
+
+function entryTimeMs(entry) {
+  const parsed = (entry && entry.parsed) || {};
+  const v = parsed.time ?? (entry && entry.ts) ?? "";
+  if (typeof v === "number" && Number.isFinite(v)) return v;
+  return Date.parse(String(v));
 }
 
 /**

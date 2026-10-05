@@ -89,6 +89,11 @@ Run against real Pomerium container `pomerium`:
 12. Restart UI container → buffer refills from initial tail
 13. Confirm no exposure: `curl -H "Host: evil" http://127.0.0.1:8081` works locally only; not reachable from another host
 14. High-volume check: burst logs remain responsive (scroll/search smooth)
+15. Sort toggle: newest-first puts newest at top; oldest-first restores newest at bottom; follow pins to the live edge in both orders
+16. Jump to live: after scrolling away (paused), jumps to newest rows and resumes follow
+17. Columns menu: hide Method/Host/Req ID (and back); blanks render for rows lacking the key; toggles + sort survive reload via localStorage
+18. More filters: service / request-id / method / message / time each narrow the list (AND with quick filters + search)
+19. Time range: preset (e.g. Last 1 hour) narrows to that window; custom From/To via calendar works; Start-after-end shows an error; Clear restores All time
 
 ## 7) Performance checks (informal)
 

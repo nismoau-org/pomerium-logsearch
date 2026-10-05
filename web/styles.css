@@ -67,6 +67,39 @@ input.invalid { border-color: var(--red); outline: 1px solid var(--red); }
 .regex-toggle { font-size: 12px; color: var(--muted); display: flex; gap: 4px; align-items: center; }
 .regex-error { color: var(--red); font-size: 12px; }
 
+/* Time-range popup (calendar picker). */
+.timerange-wrap { position: relative; }
+.timepop {
+  position: absolute;
+  top: calc(100% + 6px);
+  left: 0;
+  z-index: 20;
+  min-width: 290px;
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.5);
+}
+.time-presets { display: flex; flex-wrap: wrap; gap: 6px; }
+.time-presets button {
+  background: var(--bg);
+  color: var(--text);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 4px 10px;
+  cursor: pointer;
+  font-size: 12px;
+}
+.time-presets button:hover { border-color: var(--accent); }
+.time-custom { display: flex; flex-direction: column; gap: 6px; }
+.time-custom label { display: flex; align-items: center; gap: 8px; font-size: 12px; color: var(--muted); }
+.time-custom input { flex: 1; color-scheme: dark; }
+.time-actions { display: flex; gap: 8px; }
+
 .btn {
   background: var(--bg);
   color: var(--text);
@@ -95,11 +128,33 @@ input.invalid { border-color: var(--red); outline: 1px solid var(--red); }
 #loglist {
   flex: 1;
   overflow-y: auto;
+  scrollbar-gutter: stable; /* reserve gutter so columns align with .colheader */
   font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
   font-size: 12px;
   position: relative;
 }
 #logrows { display: flex; flex-direction: column; }
+
+/* Column header: static (outside the scroll container so virtualization math
+   is untouched), same grid as .row so columns line up. */
+.colheader {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 4px 10px;
+  background: var(--panel);
+  border-bottom: 1px solid var(--border);
+  font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--muted);
+  white-space: nowrap;
+  overflow: hidden;
+  flex: 0 0 auto;
+}
+.colheader span { overflow: hidden; text-overflow: ellipsis; }
 
 .row {
   display: flex;
@@ -124,7 +179,27 @@ input.invalid { border-color: var(--red); outline: 1px solid var(--red); }
 .c-code { flex: 0 0 44px; text-align: right; color: var(--amber); }
 .c-user { flex: 0 0 160px; }
 .c-path { flex: 0 1 220px; color: var(--muted); }
+.c-method { flex: 0 0 62px; }
+.c-host { flex: 0 1 150px; color: var(--muted); }
+.c-reqid { flex: 0 0 130px; color: var(--muted); }
 .c-msg { flex: 1 1 200px; }
+
+/* Column visibility toggles (body.hide-col-<id> set from the Columns menu).
+   Applies to both the header row and log rows since they share classes. */
+.hide-col-time .c-time, .hide-col-level .c-level, .hide-col-service .c-svc,
+.hide-col-decision .c-dec, .hide-col-code .c-code, .hide-col-user .c-user,
+.hide-col-path .c-path, .hide-col-method .c-method, .hide-col-host .c-host,
+.hide-col-reqid .c-reqid, .hide-col-message .c-msg { display: none; }
+
+/* Collapsible second header row: column toggles + per-column filters. */
+.secondrow { background: var(--panel); border-bottom: 1px solid var(--border); padding: 0 12px 8px; }
+.secondrow > summary { cursor: pointer; font-size: 12px; color: var(--muted); padding: 4px 0; }
+.secondrow-body { display: flex; flex-direction: column; gap: 8px; }
+.colmenu, .morefilters { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+.group-label { font-size: 12px; color: var(--muted); }
+.colmenu-list { display: contents; }
+.col-toggle { font-size: 12px; color: var(--text); display: flex; gap: 4px; align-items: center; cursor: pointer; }
+.morefilters input { flex: 1 1 130px; min-width: 110px; }
 
 .badge {
   display: inline-block;
@@ -203,5 +278,6 @@ input.invalid { border-color: var(--red); outline: 1px solid var(--red); }
 
 @media (max-width: 700px) {
   .c-svc, .c-user { display: none; }
+  .c-reqid, .c-host, .c-method { display: none; }
   .c-dec { flex-basis: 90px; }
 }
