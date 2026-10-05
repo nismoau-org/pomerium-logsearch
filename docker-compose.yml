@@ -23,6 +23,13 @@ services:
   pomerium-logsearch:
     image: ghcr.io/nismoau-org/pomerium-logsearch:${TAG:-edge}
     container_name: pomerium-logsearch
+    # The image defaults to USER nonroot, but the Docker socket is
+    # root:docker/0660 on most hosts, so a non-root user gets permission
+    # denied on ContainerLogs and streaming silently never starts (buffer
+    # stays at total=0). Run as root here: the socket mount is already
+    # root-equivalent on the host, so this grants nothing extra — and
+    # read_only + no-new-privileges below still apply. Trusted hosts only.
+    user: "0:0"
     ports:
       # Host interface published on. Default loopback-only (localhost-only UI —
       # never reachable from other hosts). Override at deploy time, e.g. in

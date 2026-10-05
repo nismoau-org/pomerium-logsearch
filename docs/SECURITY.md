@@ -35,6 +35,7 @@ Hygiene and security requirements for `pomerium-logsearch`. The project is **gen
   - README must state this plainly (trusted host, local-only tool)
   - never expose the UI (or the socket) to untrusted networks
   - prefer read-only intent in code: only call `ContainerList` + `ContainerLogs`; no other Docker API usage
+  - the shipped `docker-compose.yml` sets `user: "0:0"` because the socket is `root:docker/0660` on most hosts and a non-root user gets permission denied (empty buffer, no error in stdout). This grants nothing beyond what the socket mount already implies; `read_only` + `no-new-privileges` still apply.
 - **Read-only by design**: the app performs no writes to the Docker API, no file writes (in-memory buffer), no outbound network calls except localhost WebSocket/HTTP with the browser.
 - **Input validation**: JSON lines parsed defensively (size cap per line, no panic on malformed input); regex search compiled with error handling (invalid pattern → 400, no server panic).
 - **Dependency hygiene**: minimal dependencies; `go mod tidy` + `go.sum` committed; periodic `govulncheck ./...`; pin base images by digest where practical.
