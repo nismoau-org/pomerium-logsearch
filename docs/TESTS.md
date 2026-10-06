@@ -84,7 +84,7 @@ Run against real Pomerium container `pomerium`:
 7. Level header popup: dropdown filters correctly, dismisses on select, header shows marker
 8. Decision header popup: Allow/Deny tri-state + reason input filter authorize logs; header shows marker
 9. Text header inline edit: click User/Path/Code header, type to filter live, Enter/Escape/outside-click commits back to label with marker
-10. Click row → full JSON expands; copy buttons work (request-id, user, path, host)
+10. Click row → full JSON expands; copy buttons work (request-id, user, path, host); click a Req ID/IP/Host/Fwd For/User Agent cell → filters to that value, click again clears
 11. Restart Pomerium container → UI reconnects, streaming resumes (status shows reconnecting → connected)
 12. Restart UI container → buffer refills from initial tail
 13. Confirm no exposure: `curl -H "Host: evil" http://127.0.0.1:8081` works locally only; not reachable from another host

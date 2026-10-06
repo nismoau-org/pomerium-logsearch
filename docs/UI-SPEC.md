@@ -19,8 +19,9 @@ Every column header is a button. There are no standalone filter boxes — only t
 - Choice controls apply-and-dismiss; text inputs apply-live. All predicates are AND-combined with each other and with Search
 
 ## Log Row (compact)
-A static column header row (`Time | Level | Service | Decision | Code | User | IP | Path | Method | Host | Fwd For | Req ID | Message`, plus any enabled custom columns) sits above the list, sharing the row grid so columns align (scrollbar gutter reserved). Rows never wrap: when the enabled columns overflow the viewport the list scrolls horizontally and the header strip follows via transform sync. It follows the same responsive rules as rows (service/user columns hide on narrow screens).
+A static column header row (`Time | Level | Service | Decision | Code | User | IP | Path | Method | Host | Fwd For | User Agent | Req ID | Message`, plus any enabled custom columns) sits above the list, sharing the row grid so columns align (scrollbar gutter reserved). Rows never wrap: when the enabled columns overflow the viewport the list scrolls horizontally and the header strip follows via transform sync. It follows the same responsive rules as rows (service/user columns hide on narrow screens).
 Each row displays (left-to-right): time + level (color-coded) + service + allow/deny badge + response-code + user/email + path + short message. Click row to expand full JSON view. 
+- **Click-to-filter**: clicking a Req ID, IP, Host, Fwd For, or User Agent cell isolates that value (click again to clear); the column auto-enables so the filter stays visible in its header. Text selection is unaffected (selecting to copy never filters).
 - **Badges**: allow/deny shown with short reason when applicable
 - **Truncation**: long messages truncated in compact view; full content visible in expanded JSON
 

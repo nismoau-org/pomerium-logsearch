@@ -67,12 +67,13 @@ const COLUMNS = [
   { id: "decision", label: "Decision", cls: "c-dec", on: true, kind: "decision", group: "common" },
   { id: "code", label: "Code", cls: "c-code", on: true, kind: "text", key: "code", fields: ["response-code", "status", "code", "statusCode"], group: "common", hint: "Contains match over response code" },
   { id: "user", label: "User", cls: "c-user", on: true, kind: "text", key: "user", fields: ["user", "email"], group: "authorize", hint: "Contains match over user and email" },
-  { id: "ip", label: "IP", cls: "c-ip", on: false, kind: "text", key: "ip", fields: ["ip"], group: "authorize", hint: "Contains match over client ip" },
+  { id: "ip", label: "IP", cls: "c-ip", on: false, kind: "text", key: "ip", fields: ["ip"], group: "authorize", hint: "Contains match over client ip", clickFilter: true },
   { id: "path", label: "Path", cls: "c-path", on: true, kind: "text", key: "path", fields: ["path", "host", "authority"], group: "envoy", hint: "Contains match over path, host and authority" },
   { id: "method", label: "Method", cls: "c-method", on: false, kind: "text", key: "method", fields: ["method"], group: "envoy", hint: "Contains match over method" },
-  { id: "host", label: "Host", cls: "c-host", on: false, kind: "text", key: "host", fields: ["host", "authority"], group: "envoy", hint: "Contains match over host and authority" },
-  { id: "fwdf", label: "Fwd For", cls: "c-fwd", on: false, kind: "text", key: "forwarded-for", fields: ["forwarded-for", "x-forwarded-for"], group: "envoy", hint: "Contains match over forwarded-for" },
-  { id: "reqid", label: "Req ID", cls: "c-reqid", on: false, kind: "text", key: "reqid", fields: ["request-id", "check-request-id"], group: "envoy", hint: "Contains match over request-id" },
+  { id: "host", label: "Host", cls: "c-host", on: false, kind: "text", key: "host", fields: ["host", "authority"], group: "envoy", hint: "Contains match over host and authority", clickFilter: true },
+  { id: "fwdf", label: "Fwd For", cls: "c-fwd", on: false, kind: "text", key: "forwarded-for", fields: ["forwarded-for", "x-forwarded-for"], group: "envoy", hint: "Contains match over forwarded-for", clickFilter: true },
+  { id: "ua", label: "User Agent", cls: "c-ua", on: false, kind: "text", key: "user-agent", fields: ["user-agent", "user_agent"], group: "envoy", hint: "Contains match over user-agent", clickFilter: true },
+  { id: "reqid", label: "Req ID", cls: "c-reqid", on: false, kind: "text", key: "reqid", fields: ["request-id", "check-request-id"], group: "envoy", hint: "Contains match over request-id", clickFilter: true },
   { id: "message", label: "Message", cls: "c-msg", on: true, kind: "text", key: "message", fields: ["message", "msg", "error", "err"], group: "common", hint: "Contains match over message", rawFallback: true },
 ];
 
@@ -1125,7 +1126,22 @@ function buildRow(e) {
       // first non-empty parsed key wins; message falls back to the raw line.
       let v = fieldText(p, col.fields || []);
       if (!v && col.rawFallback) v = e.raw.slice(0, 200);
-      line.appendChild(cell(v, col.cls));
+      const cellEl = cell(v, col.cls);
+      if (col.clickFilter && v) {
+        // Click-to-filter: clicking the cell filters the view to its value
+        // (click again to clear) instead of expanding the row.
+        cellEl.classList.add("cell-filterable");
+        cellEl.title = `Filter ${col.label} by this value (click again to clear)`;
+        cellEl.addEventListener("click", (ev) => {
+          ev.stopPropagation();
+          const sel = typeof window.getSelection === "function"
+            ? window.getSelection().toString()
+            : "";
+          if (sel) return; // selecting text to copy must not filter
+          filterByColumn(col, v);
+        });
+      }
+      line.appendChild(cellEl);
     }
   }
 
@@ -1325,6 +1341,22 @@ function resetColumnFilters() {
   filters.timeTo = null;
   timeRange.fromMs = null;
   timeRange.toMs = null;
+  updateHeaderStates();
+  updateFooter();
+  recomputeNow(false);
+}
+
+// Click-to-filter from a flagged cell (Req ID, IP, Host, Fwd For, User
+// Agent): isolate that value (click again to clear). Auto-enables the column
+// so the active filter stays visible in its header readout.
+function filterByColumn(col, value) {
+  if (!col || !col.key) return;
+  if (!col.on) {
+    col.on = true;
+    applyCols();
+    savePrefs();
+  }
+  filters[col.key] = filters[col.key] === value ? "" : value;
   updateHeaderStates();
   updateFooter();
   recomputeNow(false);

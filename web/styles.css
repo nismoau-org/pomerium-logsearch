@@ -167,6 +167,9 @@ input.invalid { border-color: var(--red); outline: 1px solid var(--red); }
 .rowline > * { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
 .row:has(.detail) { height: auto; }
 .row:hover { background: #161d27; }
+/* Clickable Req ID cells (click-to-filter): underlined on hover to mark the
+   affordance; the row itself keeps its pointer cursor for expand. */
+.cell-filterable:hover { text-decoration: underline; color: var(--text); }
 
 .c-time { color: var(--muted); flex: 0 0 var(--cw-time, 96px); }
 .c-level { flex: 0 0 var(--cw-level, 64px); text-align: center; }
@@ -179,6 +182,7 @@ input.invalid { border-color: var(--red); outline: 1px solid var(--red); }
 .c-method { flex: 0 0 var(--cw-method, 62px); }
 .c-host { flex: 0 1 var(--cw-host, 150px); color: var(--muted); }
 .c-fwd { flex: 0 0 var(--cw-fwdf, 150px); color: var(--muted); }
+.c-ua { flex: 0 0 var(--cw-ua, 170px); color: var(--muted); }
 .c-reqid { flex: 0 0 var(--cw-reqid, 130px); color: var(--muted); }
 .c-msg { flex: 1 1 var(--cw-message, 200px); }
 
@@ -189,7 +193,7 @@ input.invalid { border-color: var(--red); outline: 1px solid var(--red); }
 .hide-col-time .c-time, .hide-col-level .c-level, .hide-col-service .c-svc,
 .hide-col-decision .c-dec, .hide-col-code .c-code, .hide-col-user .c-user,
 .hide-col-ip .c-ip, .hide-col-path .c-path, .hide-col-method .c-method,
-.hide-col-host .c-host, .hide-col-fwdf .c-fwd, .hide-col-reqid .c-reqid,
+.hide-col-host .c-host, .hide-col-fwdf .c-fwd, .hide-col-ua .c-ua, .hide-col-reqid .c-reqid,
 .hide-col-message .c-msg { display: none; }
 
 /* Clickable column header cells (filter affordance). Widths come from the
@@ -426,6 +430,6 @@ body.resizing, body.resizing * { cursor: ew-resize !important; user-select: none
 
 @media (max-width: 700px) {
   .c-svc, .c-user, .c-ip { display: none; }
-  .c-reqid, .c-host, .c-fwd, .c-method { display: none; }
+  .c-reqid, .c-host, .c-fwd, .c-ua, .c-method { display: none; }
   .c-dec { flex-basis: 90px; }
 }
