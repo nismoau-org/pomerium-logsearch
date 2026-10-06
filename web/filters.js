@@ -80,6 +80,16 @@ function contains(haystack, needle) {
   return haystack.toLowerCase().includes(needle.toLowerCase());
 }
 
+// Filter keys with bespoke matching in matchFilters. Any OTHER key present
+// on the filter object is a generic attribute query: case-insensitive
+// substring match over the same-named parsed field. Custom/discovered
+// columns ride this path with no per-field branches.
+const KNOWN_FILTER_KEYS = new Set([
+  "level", "decision", "reason", "user", "path", "code",
+  "service", "reqid", "method", "host", "message", "time",
+  "timeFrom", "timeTo",
+]);
+
 /**
  * matchFilters(entry, f): AND semantics over all predicates.
  * f = { level, decision('all'|'allow'|'deny'), reason, user, path, code,
@@ -93,7 +103,9 @@ function contains(haystack, needle) {
  * - method: over method
  * - message: over message + msg
  * - time: over parsed.time + entry ts (e.g. "12:20" or "2026-10-04")
- * Missing/empty criteria pass. Unknown keys are ignored.
+ * - any other key: case-insensitive substring over parsed[key]
+ *   (generic attribute queries for custom/discovered columns)
+ * Missing/empty criteria pass.
  */
 export function matchFilters(entry, f = {}) {
   const parsed = (entry && entry.parsed) || {};
@@ -166,6 +178,13 @@ export function matchFilters(entry, f = {}) {
 
   if (f.timeFrom != null || f.timeTo != null) {
     if (!matchTimeRange(entry, f.timeFrom, f.timeTo)) return false;
+  }
+
+  for (const k of Object.keys(f)) {
+    if (KNOWN_FILTER_KEYS.has(k)) continue;
+    const q = f[k];
+    if (q == null || q === "") continue;
+    if (!contains(str(parsed[k]), String(q))) return false;
   }
 
   return true;

@@ -168,24 +168,29 @@ input.invalid { border-color: var(--red); outline: 1px solid var(--red); }
 .row:has(.detail) { height: auto; }
 .row:hover { background: #161d27; }
 
-.c-time { color: var(--muted); flex: 0 0 96px; }
-.c-level { flex: 0 0 64px; text-align: center; }
-.c-svc { flex: 0 0 90px; color: var(--blue); }
-.c-dec { flex: 0 0 150px; }
-.c-code { flex: 0 0 44px; text-align: right; color: var(--amber); }
-.c-user { flex: 0 0 160px; }
-.c-path { flex: 0 1 220px; max-width: 340px; color: var(--muted); }
-.c-method { flex: 0 0 62px; }
-.c-host { flex: 0 1 150px; max-width: 250px; color: var(--muted); }
-.c-reqid { flex: 0 0 130px; color: var(--muted); }
-.c-msg { flex: 1 1 200px; max-width: 900px; }
+.c-time { color: var(--muted); flex: 0 0 var(--cw-time, 96px); }
+.c-level { flex: 0 0 var(--cw-level, 64px); text-align: center; }
+.c-svc { flex: 0 0 var(--cw-service, 90px); color: var(--blue); }
+.c-dec { flex: 0 0 var(--cw-decision, 150px); }
+.c-code { flex: 0 0 var(--cw-code, 44px); text-align: right; color: var(--amber); }
+.c-user { flex: 0 0 var(--cw-user, 160px); }
+.c-ip { flex: 0 0 var(--cw-ip, 130px); color: var(--muted); }
+.c-path { flex: 0 1 var(--cw-path, 220px); color: var(--muted); }
+.c-method { flex: 0 0 var(--cw-method, 62px); }
+.c-host { flex: 0 1 var(--cw-host, 150px); color: var(--muted); }
+.c-fwd { flex: 0 0 var(--cw-fwdf, 150px); color: var(--muted); }
+.c-reqid { flex: 0 0 var(--cw-reqid, 130px); color: var(--muted); }
+.c-msg { flex: 1 1 var(--cw-message, 200px); }
 
 /* Column visibility toggles (body.hide-col-<id> set from the Columns menu).
-   Applies to both the header row and log rows since they share classes. */
+   Applies to both the header row and log rows since they share classes.
+   Built-in columns are listed here; dynamic (custom) columns get equivalent
+   rules in a generated <style> block (see ensureColStyle in app.js). */
 .hide-col-time .c-time, .hide-col-level .c-level, .hide-col-service .c-svc,
 .hide-col-decision .c-dec, .hide-col-code .c-code, .hide-col-user .c-user,
-.hide-col-path .c-path, .hide-col-method .c-method, .hide-col-host .c-host,
-.hide-col-reqid .c-reqid, .hide-col-message .c-msg { display: none; }
+.hide-col-ip .c-ip, .hide-col-path .c-path, .hide-col-method .c-method,
+.hide-col-host .c-host, .hide-col-fwdf .c-fwd, .hide-col-reqid .c-reqid,
+.hide-col-message .c-msg { display: none; }
 
 /* Clickable column header cells (filter affordance). Widths come from the
    shared .c-* classes so header and rows stay aligned. */
@@ -203,6 +208,7 @@ input.invalid { border-color: var(--red); outline: 1px solid var(--red); }
   display: inline-flex;
   align-items: baseline;
   gap: 4px;
+  position: relative; /* resize grip anchors to the right edge */
 }
 .colhead:hover { color: var(--text); text-decoration: underline; }
 /* Filtered columns carry an accent marker + tooltip (see updateHeaderStates).
@@ -234,6 +240,41 @@ input.invalid { border-color: var(--red); outline: 1px solid var(--red); }
 }
 .colhead-filter[hidden] { display: none; }
 
+/* Column resize grip: a thin grab zone on the header's right edge, revealed
+   on hover so it costs no screen real estate at rest. Never narrower than
+   the header text (enforced in JS from the label width). */
+.col-resize {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  right: 0;
+  width: 9px;
+  cursor: ew-resize;
+  opacity: 0;
+  touch-action: pan-y;
+  z-index: 2;
+}
+.col-resize::after {
+  content: "";
+  position: absolute;
+  top: 4px;
+  bottom: 4px;
+  right: 3px;
+  width: 2px;
+  border-radius: 1px;
+  background: transparent;
+}
+.colhead:hover .col-resize { opacity: 1; }
+.colhead:hover .col-resize::after { background: var(--border); }
+.col-resize:hover::after { background: var(--accent); }
+@media (hover: hover) {
+  /* Avoid stealing clicks on the header's right edge until hovered. */
+  .col-resize { pointer-events: none; }
+  .colhead:hover .col-resize { pointer-events: auto; }
+}
+.colhead.editing .col-resize { display: none; }
+body.resizing, body.resizing * { cursor: ew-resize !important; user-select: none !important; }
+
 /* Inline header editing (text columns): the label hides and a distinctly
    styled input takes its place — italic, accent-colored, normal case, versus
    the muted uppercase header label. NOTE: no display: rule on .colhead-input
@@ -264,6 +305,8 @@ input.invalid { border-color: var(--red); outline: 1px solid var(--red); }
   z-index: 30;
   min-width: 250px;
   max-width: 320px;
+  max-height: min(60vh, 440px);
+  overflow-y: auto;
   background: var(--panel);
   border: 1px solid var(--border);
   border-radius: 8px;
@@ -279,6 +322,32 @@ input.invalid { border-color: var(--red); outline: 1px solid var(--red); }
 .pop-field input[type="text"] { width: 100%; }
 .pop-actions { display: flex; gap: 8px; }
 .col-toggle { font-size: 12px; color: var(--text); display: flex; gap: 6px; align-items: center; cursor: pointer; }
+/* Grouped column picker: per-log-type sections, custom add/remove. */
+.colgroup {
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--muted);
+  margin-top: 2px;
+}
+.col-row { display: flex; align-items: center; gap: 6px; }
+.col-row .col-toggle { flex: 1; min-width: 0; }
+.col-toggle .muted { color: var(--muted); font-weight: 400; }
+.col-remove {
+  margin-left: auto;
+  background: none;
+  border: 0;
+  color: var(--muted);
+  cursor: pointer;
+  padding: 0 4px;
+  font-size: 12px;
+  flex: 0 0 auto;
+}
+.col-remove:hover { color: var(--red); }
+.col-add { display: flex; gap: 6px; }
+.col-add input { flex: 1; min-width: 0; }
+.col-hint { font-size: 11px; color: var(--muted); }
 
 .badge {
   display: inline-block;
@@ -356,7 +425,7 @@ input.invalid { border-color: var(--red); outline: 1px solid var(--red); }
 .pill.error { background: #4a1a1a; color: var(--red); }
 
 @media (max-width: 700px) {
-  .c-svc, .c-user { display: none; }
-  .c-reqid, .c-host, .c-method { display: none; }
+  .c-svc, .c-user, .c-ip { display: none; }
+  .c-reqid, .c-host, .c-fwd, .c-method { display: none; }
   .c-dec { flex-basis: 90px; }
 }

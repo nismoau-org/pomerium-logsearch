@@ -90,6 +90,32 @@ describe("matchFilters", () => {
   });
 });
 
+describe("matchFilters generic attribute queries", () => {
+  it("substring-matches any non-key filter over the same-named parsed field", () => {
+    const e = entry({ service: "authorize", ip: "10.0.0.8", duration: 12 });
+    assert.equal(matchFilters(e, { ip: "10.0.0" }), true);
+    assert.equal(matchFilters(e, { ip: "10.0.0.8" }), true);
+    assert.equal(matchFilters(e, { IP: "10.0.0" }), false); // key is case-sensitive, value is not
+    assert.equal(matchFilters(e, { ip: "192.168" }), false);
+    assert.equal(matchFilters(e, { ip: "" }), true); // empty query passes
+    assert.equal(matchFilters(e, { duration: "12" }), true); // numeric field values
+    assert.equal(matchFilters(e, { duration: "13" }), false);
+  });
+
+  it("excludes rows lacking the field while a query is active", () => {
+    const e = entry({ service: "envoy" });
+    assert.equal(matchFilters(e, {}), true);
+    assert.equal(matchFilters(e, { ip: "10." }), false);
+  });
+
+  it("AND-combines generic queries with bespoke ones", () => {
+    const e = entry({ level: "info", ip: "10.0.0.8" });
+    assert.equal(matchFilters(e, { level: "info", ip: "10." }), true);
+    assert.equal(matchFilters(e, { level: "error", ip: "10." }), false);
+    assert.equal(matchFilters(e, { level: "info", ip: "192." }), false);
+  });
+});
+
 describe("matchTimeRange", () => {
   const e = (ts) => entry({ time: ts }, "raw");
   const H = 3600000;

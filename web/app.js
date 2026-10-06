@@ -13,6 +13,8 @@ const COPY_FIELDS = [
   "check-request-id",
   "user",
   "email",
+  "ip",
+  "forwarded-for",
   "path",
   "host",
   "authority",
@@ -52,19 +54,26 @@ const timeRange = { fromMs: null, toMs: null };
 // lack, so heterogeneous schemas share one stable layout. `on` is the
 // default visibility (persisted); `kind` selects the header-popup editor:
 // text (contains input), level (dropdown), decision (tri-state + reason),
-// time (presets + calendar range). `key` is the filters.js field.
+// time (presets + calendar range). `key` is the filters.js field;
+// `fields` is the ordered parsed-key list a text column displays (first hit
+// wins) — the filter itself matches `key` exactly via the generic
+// matchFilters path. `group` buckets columns in the Columns dialog per log
+// type: common | authorize | envoy | custom. Custom/discovered columns are
+// appended at runtime with group "custom" (see addCustomColumn).
 const COLUMNS = [
-  { id: "time", label: "Time", cls: "c-time", on: true, kind: "time" },
-  { id: "level", label: "Level", cls: "c-level", on: true, kind: "level" },
-  { id: "service", label: "Service", cls: "c-svc", on: true, kind: "text", key: "service", hint: "Contains match over service" },
-  { id: "decision", label: "Decision", cls: "c-dec", on: true, kind: "decision" },
-  { id: "code", label: "Code", cls: "c-code", on: true, kind: "text", key: "code", hint: "Contains match over response code" },
-  { id: "user", label: "User", cls: "c-user", on: true, kind: "text", key: "user", hint: "Contains match over user and email" },
-  { id: "path", label: "Path", cls: "c-path", on: true, kind: "text", key: "path", hint: "Contains match over path, host and authority" },
-  { id: "method", label: "Method", cls: "c-method", on: false, kind: "text", key: "method", hint: "Contains match over method" },
-  { id: "host", label: "Host", cls: "c-host", on: false, kind: "text", key: "host", hint: "Contains match over host and authority" },
-  { id: "reqid", label: "Req ID", cls: "c-reqid", on: false, kind: "text", key: "reqid", hint: "Contains match over request-id" },
-  { id: "message", label: "Message", cls: "c-msg", on: true, kind: "text", key: "message", hint: "Contains match over message" },
+  { id: "time", label: "Time", cls: "c-time", on: true, kind: "time", group: "common" },
+  { id: "level", label: "Level", cls: "c-level", on: true, kind: "level", group: "common" },
+  { id: "service", label: "Service", cls: "c-svc", on: true, kind: "text", key: "service", fields: ["service", "svc"], group: "common", hint: "Contains match over service" },
+  { id: "decision", label: "Decision", cls: "c-dec", on: true, kind: "decision", group: "common" },
+  { id: "code", label: "Code", cls: "c-code", on: true, kind: "text", key: "code", fields: ["response-code", "status", "code", "statusCode"], group: "common", hint: "Contains match over response code" },
+  { id: "user", label: "User", cls: "c-user", on: true, kind: "text", key: "user", fields: ["user", "email"], group: "authorize", hint: "Contains match over user and email" },
+  { id: "ip", label: "IP", cls: "c-ip", on: false, kind: "text", key: "ip", fields: ["ip"], group: "authorize", hint: "Contains match over client ip" },
+  { id: "path", label: "Path", cls: "c-path", on: true, kind: "text", key: "path", fields: ["path", "host", "authority"], group: "envoy", hint: "Contains match over path, host and authority" },
+  { id: "method", label: "Method", cls: "c-method", on: false, kind: "text", key: "method", fields: ["method"], group: "envoy", hint: "Contains match over method" },
+  { id: "host", label: "Host", cls: "c-host", on: false, kind: "text", key: "host", fields: ["host", "authority"], group: "envoy", hint: "Contains match over host and authority" },
+  { id: "fwdf", label: "Fwd For", cls: "c-fwd", on: false, kind: "text", key: "forwarded-for", fields: ["forwarded-for", "x-forwarded-for"], group: "envoy", hint: "Contains match over forwarded-for" },
+  { id: "reqid", label: "Req ID", cls: "c-reqid", on: false, kind: "text", key: "reqid", fields: ["request-id", "check-request-id"], group: "envoy", hint: "Contains match over request-id" },
+  { id: "message", label: "Message", cls: "c-msg", on: true, kind: "text", key: "message", fields: ["message", "msg", "error", "err"], group: "common", hint: "Contains match over message", rawFallback: true },
 ];
 
 function colById(id) {
@@ -73,9 +82,21 @@ function colById(id) {
 
 function loadPrefs() {
   try {
+    const customs = JSON.parse(localStorage.getItem("pls-custom-cols-v1") || "null");
+    if (Array.isArray(customs)) {
+      for (const d of customs) {
+        if (d && typeof d.key === "string") addCustomColumn(d.key, d.on !== false, true);
+      }
+    }
     const cols = JSON.parse(localStorage.getItem("pls-cols-v1") || "null");
     if (cols && typeof cols === "object") {
       for (const c of COLUMNS) if (typeof cols[c.id] === "boolean") c.on = cols[c.id];
+    }
+    const widths = JSON.parse(localStorage.getItem("pls-colwidths-v1") || "null");
+    if (widths && typeof widths === "object") {
+      for (const [id, w] of Object.entries(widths)) {
+        if (Number.isFinite(w) && w >= 40 && w <= 2000) colWidths[id] = Math.round(w);
+      }
     }
     const s = localStorage.getItem("pls-sort-v1");
     if (s === "asc" || s === "desc") sortOrder = s;
@@ -88,11 +109,184 @@ function savePrefs() {
     for (const c of COLUMNS) cols[c.id] = c.on;
     localStorage.setItem("pls-cols-v1", JSON.stringify(cols));
     localStorage.setItem("pls-sort-v1", sortOrder);
+    localStorage.setItem("pls-custom-cols-v1", JSON.stringify(
+      COLUMNS.filter((c) => c.dynamic).map((c) => ({ key: c.key, on: c.on }))));
+    localStorage.setItem("pls-colwidths-v1", JSON.stringify(colWidths));
   } catch { /* ignore */ }
 }
 
 function applyCols() {
   for (const c of COLUMNS) document.body.classList.toggle("hide-col-" + c.id, !c.on);
+}
+
+// Per-column widths (px), persisted. Applied as --cw-<id> custom properties
+// consumed by the .c-* flex-basis rules, so headers and rows resize together
+// with no re-render.
+const colWidths = {};
+
+function widthVar(id) {
+  return `--cw-${id}`;
+}
+
+function applyWidths() {
+  const root = document.documentElement.style;
+  for (const c of COLUMNS) {
+    if (colWidths[c.id]) root.setProperty(widthVar(c.id), colWidths[c.id] + "px");
+    else root.removeProperty(widthVar(c.id));
+  }
+}
+
+function resetColWidth(col) {
+  delete colWidths[col.id];
+  document.documentElement.style.removeProperty(widthVar(col.id));
+  savePrefs();
+}
+
+// Visibility CSS is generated from the registry (single source): built-in
+// columns keep their static rules in styles.css, dynamic ones get rules here.
+// Dynamic columns also get their default flex-basis here.
+let colStyleEl = null;
+function ensureColStyle() {
+  if (!colStyleEl) {
+    colStyleEl = document.createElement("style");
+    colStyleEl.id = "coldyn";
+    document.head.appendChild(colStyleEl);
+  }
+  let css = "";
+  for (const c of COLUMNS) {
+    if (!c.dynamic) continue;
+    css += `.hide-col-${c.id} .${c.cls}{display:none;}\n`;
+    css += `.${c.cls}{flex:0 0 var(${widthVar(c.id)},140px);color:var(--muted);}\n`;
+  }
+  colStyleEl.textContent = css;
+}
+
+// ---------- custom / discovered columns ----------
+// Any scalar parsed attribute can become a column. Discovery runs over buffered
+// lines (full scan on load, incremental per line after) and feeds the Columns
+// dialog; keys already covered by the registry (or internal/non-scalar) are
+// skipped. colsVersion enters the render signature so grid changes rebuild.
+let colsVersion = 0;
+let indexedKeys = new Set();
+const fieldSeen = new Map(); // key -> { count, services: Set }
+const EXCLUDED_KEYS = new Set(["container", "time", "level", "decision"]);
+// Keys with dedicated filter semantics (bespoke matchFilters branches):
+// they already have columns/UI, so they can't become custom columns.
+const RESERVED_FILTER_KEYS = new Set([
+  "level", "decision", "reason", "time", "timeFrom", "timeTo",
+]);
+
+function reindexRegistry() {
+  indexedKeys = new Set(EXCLUDED_KEYS);
+  for (const c of COLUMNS) for (const k of c.fields || []) {
+    indexedKeys.add(k);
+    if (fieldSeen.has(k)) fieldSeen.delete(k);
+  }
+}
+
+function serviceOf(parsed) {
+  return str(parsed.service || parsed.svc || "other");
+}
+
+function isScalarCell(v) {
+  return v == null || ["string", "number", "boolean"].includes(typeof v);
+}
+
+function noteField(k, v, svc) {
+  if (typeof k !== "string" || k === "" || k[0] === "_" || indexedKeys.has(k)) return;
+  let rec = fieldSeen.get(k);
+  if (!rec) {
+    if (!isScalarCell(v)) {
+      indexedKeys.add(k); // remember the verdict: never column material
+      return;
+    }
+    rec = { count: 0, services: new Set() };
+    fieldSeen.set(k, rec);
+  }
+  rec.count++;
+  if (svc) rec.services.add(svc);
+}
+
+// Feed one entry's parsed keys into field discovery (cheap: one Set lookup
+// per key once indexed).
+function noteEntryFields(e) {
+  const p = (e && e.parsed) || {};
+  const svc = serviceOf(p);
+  for (const k of Object.keys(p)) noteField(k, p[k], svc);
+}
+
+// Discovered fields not yet columns, most frequent first (cap keeps the
+// dialog neat on wild schemas).
+function discoveredList(limit = 30) {
+  return [...fieldSeen.entries()]
+    .map(([key, rec]) => ({ key, count: rec.count, services: [...rec.services].sort() }))
+    .sort((a, b) => b.count - a.count)
+    .slice(0, limit);
+}
+
+function slugOf(key) {
+  return key.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "") || "field";
+}
+
+function addCustomColumn(rawKey, on = true, quiet = false) {
+  const key = String(rawKey || "").trim();
+  if (!/^[A-Za-z0-9_.-]+$/.test(key)) return null;
+  // Keys with dedicated filter semantics already have their own columns/UI.
+  if (RESERVED_FILTER_KEYS.has(key)) return null;
+  const dup = COLUMNS.find((c) => c.kind === "text" && c.key === key);
+  if (dup) {
+    if (!quiet && dup.on !== !!on) {
+      dup.on = !!on;
+      afterColumnsChanged();
+    }
+    return dup;
+  }
+  const id = "f-" + slugOf(key);
+  if (COLUMNS.some((c) => c.id === id)) return null;
+  const col = {
+    id, label: key, cls: "c-" + id, on: !!on, kind: "text",
+    key, fields: [key], group: "custom", hint: `Contains match over ${key}`,
+    dynamic: true,
+  };
+  COLUMNS.push(col);
+  if (!quiet) afterColumnsChanged();
+  return col;
+}
+
+function removeCustomColumn(id) {
+  const i = COLUMNS.findIndex((c) => c.id === id && c.dynamic);
+  if (i < 0) return;
+  const [col] = COLUMNS.splice(i, 1);
+  delete filters[col.key];
+  delete colWidths[col.id];
+  document.documentElement.style.removeProperty(widthVar(col.id));
+  afterColumnsChanged();
+  recomputeNow(false);
+}
+
+function afterColumnsChanged() {
+  colsVersion++;
+  reindexRegistry();
+  ensureColStyle();
+  applyCols();
+  savePrefs();
+  rebuildHeaders();
+  queueRender(false);
+  refreshColumnsDialog();
+}
+
+function rebuildHeaders() {
+  commitInlineEdit();
+  initHeaders();
+  applyCols();
+  updateHeaderStates();
+}
+
+function refreshColumnsDialog() {
+  if (popId === "columns" && !els.colPop.hidden) {
+    els.colPop.textContent = "";
+    els.colPop.appendChild(buildColumnsEditor());
+  }
 }
 
 // ---------- shared column popover ----------
@@ -389,26 +583,118 @@ function buildTimeEditor() {
   return wrap;
 }
 
+function colGroupTitle(text) {
+  const h = document.createElement("div");
+  h.className = "colgroup";
+  h.textContent = text;
+  return h;
+}
+
+function colToggleRow(c) {
+  const row = document.createElement("div");
+  row.className = "col-row";
+  const lab = document.createElement("label");
+  lab.className = "col-toggle";
+  const cb = document.createElement("input");
+  cb.type = "checkbox";
+  cb.checked = c.on;
+  cb.setAttribute("aria-label", "Show " + c.label + " column");
+  cb.addEventListener("change", () => {
+    c.on = cb.checked;
+    applyCols();
+    savePrefs();
+    queueRender(false);
+  });
+  lab.appendChild(cb);
+  lab.appendChild(document.createTextNode(" " + c.label));
+  row.appendChild(lab);
+  if (c.dynamic) {
+    const rm = document.createElement("button");
+    rm.type = "button";
+    rm.className = "col-remove";
+    rm.textContent = "✕";
+    rm.title = `Remove ${c.key} column`;
+    rm.setAttribute("aria-label", `Remove ${c.key} column`);
+    rm.addEventListener("click", (ev) => {
+      ev.stopPropagation();
+      removeCustomColumn(c.id);
+    });
+    row.appendChild(rm);
+  }
+  return row;
+}
+
 function buildColumnsEditor() {
   const wrap = document.createElement("div");
   wrap.style.display = "contents";
   wrap.appendChild(popTitle("Show columns"));
-  for (const c of COLUMNS) {
-    const lab = document.createElement("label");
-    lab.className = "col-toggle";
-    const cb = document.createElement("input");
-    cb.type = "checkbox";
-    cb.checked = c.on;
-    cb.setAttribute("aria-label", "Show " + c.label + " column");
-    cb.addEventListener("change", () => {
-      c.on = cb.checked;
-      applyCols();
-      savePrefs();
-      queueRender(false);
-    });
-    lab.appendChild(cb);
-    lab.appendChild(document.createTextNode(" " + c.label));
-    wrap.appendChild(lab);
+  for (const [group, title] of [["common", "Common"], ["authorize", "Authorize"],
+      ["envoy", "Envoy"], ["custom", "Custom fields"]]) {
+    const cols = COLUMNS.filter((c) => (c.group || "common") === group);
+    if (group !== "custom" && cols.length === 0) continue;
+    wrap.appendChild(colGroupTitle(title));
+    for (const c of cols) wrap.appendChild(colToggleRow(c));
+    if (group === "custom") {
+      if (cols.length === 0) {
+        const hint = document.createElement("div");
+        hint.className = "col-hint";
+        hint.textContent = "No custom fields yet — enable a discovered field below or add one by name.";
+        wrap.appendChild(hint);
+      }
+      const add = document.createElement("div");
+      add.className = "col-add";
+      const input = document.createElement("input");
+      input.type = "text";
+      input.className = "col-add-input";
+      input.placeholder = "Add field, e.g. trace-id…";
+      input.setAttribute("aria-label", "Add a custom column by field name");
+      const btn = document.createElement("button");
+      btn.type = "button";
+      btn.className = "btn";
+      btn.textContent = "Add";
+      const submit = () => {
+        const col = addCustomColumn(input.value, true);
+        if (col) input.value = "";
+        else {
+          input.classList.add("invalid");
+          setTimeout(() => input.classList.remove("invalid"), 1200);
+        }
+      };
+      btn.addEventListener("click", submit);
+      input.addEventListener("keydown", (ev) => {
+        if (ev.key === "Enter") submit();
+      });
+      input.addEventListener("click", (ev) => ev.stopPropagation());
+      add.appendChild(input);
+      add.appendChild(btn);
+      wrap.appendChild(add);
+    }
+  }
+  const disc = discoveredList();
+  if (disc.length > 0) {
+    wrap.appendChild(colGroupTitle("Discovered in logs"));
+    for (const d of disc) {
+      const row = document.createElement("div");
+      row.className = "col-row";
+      const lab = document.createElement("label");
+      lab.className = "col-toggle";
+      const cb = document.createElement("input");
+      cb.type = "checkbox";
+      cb.checked = false;
+      cb.setAttribute("aria-label", "Add " + d.key + " column");
+      cb.addEventListener("change", () => {
+        if (cb.checked) addCustomColumn(d.key, true);
+      });
+      lab.appendChild(cb);
+      lab.appendChild(document.createTextNode(" " + d.key));
+      const svc = document.createElement("span");
+      svc.className = "muted";
+      svc.textContent = " · " + d.services.slice(0, 2).join(", ") +
+        (d.services.length > 2 ? ` +${d.services.length - 2}` : "");
+      lab.appendChild(svc);
+      row.appendChild(lab);
+      wrap.appendChild(row);
+    }
   }
   return wrap;
 }
@@ -506,8 +792,62 @@ function initHeaders() {
       ev.stopPropagation();
       onHeadClick(col, b);
     });
+    // Resize grip: drag the right edge to set this column's width (shared by
+    // the header and every row via a --cw-<id> custom property, persisted).
+    // Plain clicks on the grip do nothing (they must not open the filter).
+    const grip = document.createElement("span");
+    grip.className = "col-resize";
+    grip.title = "Drag to resize (double-click to reset)";
+    grip.setAttribute("aria-hidden", "true");
+    grip.addEventListener("pointerdown", (ev) => startResize(ev, col, b));
+    grip.addEventListener("click", (ev) => ev.stopPropagation());
+    grip.addEventListener("dblclick", (ev) => {
+      ev.stopPropagation();
+      resetColWidth(col);
+    });
+    b.appendChild(grip);
     wrap.appendChild(b);
   }
+}
+
+// Drag-to-resize: live-update --cw-<id> from pointer dx, clamped to the
+// header-text width at the bottom (per request: never narrower than the
+// label) and 1200px at the top. Saved on release.
+let resizing = null;
+function startResize(ev, col, btn) {
+  ev.stopPropagation();
+  ev.preventDefault();
+  const lab = btn.querySelector(".colhead-label");
+  const minW = Math.ceil(lab ? lab.scrollWidth : 40) + 12;
+  const startX = ev.clientX;
+  const startW = btn.getBoundingClientRect().width || minW;
+  resizing = { col, minW, startX, startW, w: null };
+  document.body.classList.add("resizing");
+  const move = (e) => {
+    if (!resizing) return;
+    const w = Math.min(1200, Math.max(resizing.minW, resizing.startW + (e.clientX - resizing.startX)));
+    document.documentElement.style.setProperty(widthVar(resizing.col.id), Math.round(w) + "px");
+    resizing.w = Math.round(w);
+  };
+  const done = () => {
+    document.body.classList.remove("resizing");
+    window.removeEventListener("pointermove", move);
+    window.removeEventListener("pointerup", done);
+    window.removeEventListener("pointercancel", done);
+    if (resizing && resizing.w != null && Math.abs(resizing.w - resizing.startW) > 2) {
+      colWidths[resizing.col.id] = resizing.w;
+      savePrefs();
+    }
+    resizing = null;
+  };
+  window.addEventListener("pointermove", move);
+  window.addEventListener("pointerup", done);
+  window.addEventListener("pointercancel", done);
+  try {
+    if (ev.target && ev.target.setPointerCapture && ev.pointerId !== undefined) {
+      ev.target.setPointerCapture(ev.pointerId);
+    }
+  } catch { /* mouse/older browsers: window listeners still track */ }
 }
 
 const $ = (id) => document.getElementById(id);
@@ -526,12 +866,26 @@ function str(v) {
   return String(v);
 }
 
-function field(parsed, ...keys) {
-  for (const k of keys) {
+// fieldText renders the first non-empty parsed key: object-safe, so
+// non-scalar values (possible in dynamic columns) render as compact JSON
+// instead of "[object Object]".
+function fieldText(parsed, keys) {
+  for (const k of keys || []) {
     const v = parsed[k];
-    if (v !== undefined && v !== null && v !== "") return str(v);
+    if (v === undefined || v === null || v === "") continue;
+    if (typeof v === "object") return compactJson(v);
+    return str(v);
   }
   return "";
+}
+
+function compactJson(v) {
+  try {
+    const s = JSON.stringify(v) ?? "";
+    return s.length > 200 ? s.slice(0, 199) + "…" : s;
+  } catch {
+    return str(v);
+  }
 }
 
 function levelClass(level) {
@@ -561,11 +915,6 @@ function shortReason(parsed) {
     if (v) return v.length > 48 ? v.slice(0, 47) + "…" : v;
   }
   return "";
-}
-
-function messageOf(e) {
-  const p = e.parsed || {};
-  return field(p, "message", "msg", "error", "err") || e.raw.slice(0, 200);
 }
 
 // ---------- filter + render pipeline ----------
@@ -687,7 +1036,7 @@ function render(stick = false) {
   // feel sticky. Spacers/empty-state/transform above are already in place.
   const sig = displayed.length + "|" +
     (displayed.length ? displayed[0].id + "|" + displayed[displayed.length - 1].id : "") +
-    "|" + sortOrder + "|exp" + expandedVersion;
+    "|" + sortOrder + "|exp" + expandedVersion + "|cols" + colsVersion;
   const pin = (stick || (follow && nearLiveEdge())) && follow;
   if (start === lastStart && end === lastEnd && sig === lastSig) {
     if (pin) scrollToLive();
@@ -738,33 +1087,37 @@ function buildRow(e) {
   line.className = "rowline";
   row.appendChild(line);
 
-  line.appendChild(cell(fmtTime(e), "c-time"));
-  const lvl = str(p.level || "");
-  const lb = badge(lvl ? normalizeLevel(lvl) || lvl : "?", levelClass(lvl));
-  lb.classList.add("c-level");
-  line.appendChild(lb);
-  line.appendChild(cell(field(p, "service", "svc"), "c-svc"));
-
-  const dec = entryDecision(p);
-  if (dec === "allow") {
-    const b = badge(shortReason(p) ? "allow · " + shortReason(p) : "allow", "allow");
-    b.classList.add("c-dec");
-    line.appendChild(b);
-  } else if (dec === "deny") {
-    const b = badge(shortReason(p) ? "deny · " + shortReason(p) : "deny", "deny");
-    b.classList.add("c-dec");
-    line.appendChild(b);
-  } else {
-    line.appendChild(cell("", "c-dec"));
+  // Cells follow the column registry in order (visibility is CSS-driven, so
+  // every cell always renders and toggling never needs a rebuild).
+  for (const col of COLUMNS) {
+    if (col.kind === "time") {
+      line.appendChild(cell(fmtTime(e), col.cls));
+    } else if (col.kind === "level") {
+      const lvl = str(p.level || "");
+      const lb = badge(lvl ? normalizeLevel(lvl) || lvl : "?", levelClass(lvl));
+      lb.classList.add(col.cls);
+      line.appendChild(lb);
+    } else if (col.kind === "decision") {
+      const dec = entryDecision(p);
+      if (dec === "allow") {
+        const b = badge(shortReason(p) ? "allow · " + shortReason(p) : "allow", "allow");
+        b.classList.add(col.cls);
+        line.appendChild(b);
+      } else if (dec === "deny") {
+        const b = badge(shortReason(p) ? "deny · " + shortReason(p) : "deny", "deny");
+        b.classList.add(col.cls);
+        line.appendChild(b);
+      } else {
+        line.appendChild(cell("", col.cls));
+      }
+    } else {
+      // Generic field column (curated text columns and dynamic ones alike):
+      // first non-empty parsed key wins; message falls back to the raw line.
+      let v = fieldText(p, col.fields || []);
+      if (!v && col.rawFallback) v = e.raw.slice(0, 200);
+      line.appendChild(cell(v, col.cls));
+    }
   }
-
-  line.appendChild(cell(field(p, "response-code", "status", "code", "statusCode"), "c-code"));
-  line.appendChild(cell(field(p, "user", "email"), "c-user"));
-  line.appendChild(cell(field(p, "path", "host", "authority"), "c-path"));
-  line.appendChild(cell(field(p, "method"), "c-method"));
-  line.appendChild(cell(field(p, "host", "authority"), "c-host"));
-  line.appendChild(cell(field(p, "request-id", "check-request-id"), "c-reqid"));
-  line.appendChild(cell(messageOf(e), "c-msg"));
 
   row.addEventListener("click", (ev) => {
     if (ev.target.closest("button")) return;
@@ -846,6 +1199,7 @@ function addEntry(line) {
   if (idSet.has(line.id)) return;
   idSet.add(line.id);
   entries.push({ id: line.id, ts: line.ts || "", raw: str(line.raw), parsed: line.parsed || {} });
+  noteEntryFields(entries[entries.length - 1]);
   if (entries.length > CLIENT_CAP) {
     const drop = entries.length - CLIENT_CAP;
     for (let i = 0; i < drop; i++) idSet.delete(entries[i].id);
@@ -955,14 +1309,7 @@ function resetColumnFilters() {
   filters.level = "all";
   filters.decision = "all";
   filters.reason = "";
-  filters.user = "";
-  filters.path = "";
-  filters.code = "";
-  filters.service = "";
-  filters.reqid = "";
-  filters.method = "";
-  filters.host = "";
-  filters.message = "";
+  for (const c of COLUMNS) if (c.kind === "text" && c.key) filters[c.key] = "";
   filters.time = "";
   filters.timeFrom = null;
   filters.timeTo = null;
@@ -1079,26 +1426,28 @@ function initControls() {
       commitInlineEdit();
     }
   });
-  // Manual scroll away from the live edge pauses follow (direction-based, so
-  // programmatic live-edge pins never trigger it): otherwise every live batch
-  // yanks the view back and slow, precise scrolling while tailing is
-  // impossible. Click Follow / Jump to live to resume.
+  // Any manual scroll that leaves the view off the live edge pauses follow.
+  // With a live stream, staying pinned would otherwise drag the view to the
+  // edge on every batch, so an exact scroll position could never be held
+  // (scrolling down one line would run away to the bottom). Programmatic
+  // live-edge pins land exactly on the edge, so they never trigger this.
+  // Click Follow / Jump to live to resume.
   els.loglist.addEventListener("scroll", () => {
     const st = els.loglist.scrollTop;
-    const delta = st - lastScrollTop;
+    const moved = st !== lastScrollTop;
     lastScrollTop = st;
-    if (follow && displayed.length > 0) {
-      const away = sortOrder === "asc" ? delta < 0 : delta > 0;
-      if (away) setFollow(false);
-    }
+    if (follow && moved && displayed.length > 0 && !nearLiveEdge()) setFollow(false);
     queueRender(false);
   }, { passive: true });
   window.addEventListener("resize", () => queueRender(false));
 }
 
 async function main() {
-  loadPrefs();
+  loadPrefs(); // restores custom columns too (quietly, before first render)
+  reindexRegistry();
+  ensureColStyle();
   applyCols();
+  applyWidths();
   initHeaders();
   initControls();
   setSort(sortOrder); // sync sort button label + aria with loaded pref
