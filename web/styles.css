@@ -200,18 +200,47 @@ input.invalid { border-color: var(--red); outline: 1px solid var(--red); }
   min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
+  display: inline-flex;
+  align-items: baseline;
+  gap: 4px;
 }
 .colhead:hover { color: var(--text); text-decoration: underline; }
-/* Filtered columns carry an accent marker + tooltip (see updateHeaderStates). */
+/* Filtered columns carry an accent marker + tooltip (see updateHeaderStates).
+   The label stays uppercase/bold; the inline filter readout beside it is the
+   distinguishable font: regular-weight italic normal-case accent. */
 .colhead.col-filtered { color: var(--accent); font-weight: 700; text-decoration: underline; }
+
+/* Inline filter readout: "TITLE = value" alongside the header label. Ellipsis
+   truncation keeps narrow columns (Code/Method) at zero extra width cost. */
+.colhead-label { flex: 0 0 auto; overflow: hidden; text-overflow: ellipsis; }
+.colhead-filter {
+  flex: 0 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-weight: 400;
+  font-style: italic;
+  text-transform: none;
+  letter-spacing: normal;
+  color: var(--accent);
+  opacity: 0.9;
+  text-decoration: none;
+}
+.colhead-filter::before {
+  content: "= ";
+  font-style: normal;
+  opacity: 0.6;
+}
+.colhead-filter[hidden] { display: none; }
 
 /* Inline header editing (text columns): the label hides and a distinctly
    styled input takes its place — italic, accent-colored, normal case, versus
    the muted uppercase header label. NOTE: no display: rule on .colhead-input
    (it would override the hidden attribute — same bug class as timepop). */
 .colhead.editing { display: inline-flex; align-items: center; }
-.colhead.editing .colhead-label { display: none; }
-.colhead-label { overflow: hidden; text-overflow: ellipsis; }
+.colhead.editing .colhead-label,
+.colhead.editing .colhead-filter { display: none; }
 .colhead-input {
   flex: 1;
   min-width: 0;

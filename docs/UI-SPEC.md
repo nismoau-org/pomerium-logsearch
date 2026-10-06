@@ -11,7 +11,7 @@
 - **Search**: full-text input + **Regex** toggle (debounced 150-250ms). Cross-column by design — it stays in the toolbar while per-column filters move into the headers
 
 ## Column headers (click to filter)
-Every column header is a button. There are no standalone filter boxes — only the cross-column Search stays in the toolbar. Filtered columns show an accent marker plus a tooltip/aria summary of the active value.
+Every column header is a button. There are no standalone filter boxes — only the cross-column Search stays in the toolbar. Filtered columns show the active value inline next to the title (`TITLE = value`, italic accent normal-case vs the muted uppercase label, ellipsis-truncated so narrow columns cost no extra width), plus an accent marker and a tooltip/aria summary of the full value.
 - **Text columns** (Service, Code, User, Path, Method, Host, Req ID, Message): clicking swaps the label for an inline input in place, styled distinctly (italic, accent-colored, normal case vs the muted uppercase label). Typing applies live (debounced); Enter applies immediately, Escape/blur/outside-click commits. Works in narrow columns too (text scrolls inside the input).
 - **Level**: dropdown popup, applies and dismisses on select
 - **Decision**: popup with All/Allow/Deny tri-state (applies + dismisses) plus Reason-contains input (live)

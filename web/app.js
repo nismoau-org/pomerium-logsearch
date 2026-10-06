@@ -144,6 +144,23 @@ function updateHeaderStates() {
     const base = `${col.label} — click to filter`;
     btn.title = active ? `${col.label} — filter: ${summary} (click to edit)` : base;
     btn.setAttribute("aria-label", active ? `${col.label}, filter active: ${summary}` : base);
+    // Inline filter readout: sleek text alongside the title (hidden when
+    // inactive or while inline-editing). Truncated via CSS ellipsis so narrow
+    // columns cost no extra screen real estate.
+    const fEl = btn.querySelector(".colhead-filter");
+    if (fEl) {
+      const editing = btn.classList.contains("editing");
+      fEl.hidden = !active || editing;
+      fEl.textContent = !active || editing ? "" : summary;
+    }
+    // Keep the inline input in sync when it isn't being typed in (e.g. after
+    // Reset filters clears the state while the input still holds stale text).
+    const inp = btn.querySelector(".colhead-input");
+    const focused = typeof document !== "undefined" ? document.activeElement : null;
+    if (inp && focused !== inp) {
+      const cur = col.kind === "text" ? String(filters[col.key] || "") : "";
+      if (inp.value !== cur) inp.value = cur;
+    }
   }
 }
 
@@ -449,6 +466,14 @@ function initHeaders() {
     lab.className = "colhead-label";
     lab.textContent = col.label;
     b.appendChild(lab);
+    // Filter readout shown alongside the title when this column is filtered
+    // (populated in updateHeaderStates; hidden otherwise). aria-hidden since
+    // the button's aria-label already announces the active filter.
+    const filt = document.createElement("span");
+    filt.className = "colhead-filter";
+    filt.hidden = true;
+    filt.setAttribute("aria-hidden", "true");
+    b.appendChild(filt);
     if (col.kind === "text") {
       const inp = document.createElement("input");
       inp.type = "text";
