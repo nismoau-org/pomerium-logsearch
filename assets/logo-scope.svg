@@ -1,0 +1,8 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128" role="img" aria-label="Logscope logo: a blue magnifier over log lines">
+  <path d="M26,52 a30,30 0 1,0 60,0 a30,30 0 1,0 -60,0 M39,52 a17,17 0 1,0 34,0 a17,17 0 1,0 -34,0" fill="#4285F3" fill-rule="evenodd"/>
+  <line x1="74" y1="70" x2="102" y2="98" stroke="#4285F3" stroke-width="17" stroke-linecap="round"/>
+  <rect x="42" y="43" width="28" height="6" rx="3" fill="#FFFFFF"/>
+  <rect x="42" y="51" width="28" height="6" rx="3" fill="#FFFFFF"/>
+  <rect x="45" y="58" width="12" height="6" rx="3" fill="#FFFFFF"/>
+  <rect x="59" y="58" width="6" height="6" rx="3" fill="#34A853"/>
+</svg>

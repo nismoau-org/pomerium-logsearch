@@ -1,0 +1,7 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128" role="img" aria-label="Shield tail logo: a blue shield with log lines and a live cursor">
+  <path d="M64 14 L100 30 V60 C100 86 84 102 64 112 C44 102 28 86 28 60 V30 Z" fill="#4285F3" stroke="#4285F3" stroke-width="10" stroke-linejoin="round"/>
+  <rect x="47" y="50" width="34" height="9" rx="4.5" fill="#FFFFFF"/>
+  <rect x="47" y="63" width="34" height="9" rx="4.5" fill="#FFFFFF"/>
+  <rect x="47" y="76" width="20" height="9" rx="4.5" fill="#FFFFFF"/>
+  <rect x="70" y="76" width="9" height="9" rx="4.5" fill="#34A853"/>
+</svg>

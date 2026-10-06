@@ -10,7 +10,7 @@
 - **History semantics**: first connect replays `INIT_TAIL` daemon-kept lines (default 1000; bounded by the daemon's log retention), then follows live; reconnects use `Tail=100` to avoid reflooding. The ring is in-memory only — restarting this container replays just the `INIT_TAIL` window again. Nothing is ever persisted
 
 ## Frontend
-- **Embedded assets**: `index.html`, `app.js`, `styles.css` embedded via `go:embed` (no build step for MVP)
+- **Embedded assets**: `index.html`, `app.js`, `styles.css`, `logo.svg` embedded via `go:embed` (no build step for MVP)
 - **Rendering**: vanilla JS with requestAnimationFrame-based virtualized list for high-volume logs
 - **Transport**: WebSocket for live stream; `fetch` for initial buffer and container list
 - **Filtering**: client-side predicates (level, allow/deny + reasons, user/email, path/host, response-code, service, request-id, method, message, time substring, absolute time range, plus generic per-attribute queries for custom columns) combined with full-text/regex search over raw+parsed fields
