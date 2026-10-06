@@ -1,5 +1,9 @@
 # pomerium-logsearch
 
+<p align="center">
+  <img src="assets/logo-shield.svg" width="120" alt="pomerium-logsearch logo">
+</p>
+
 **A friendly log viewer that sits alongside your Pomerium zero-trust proxy.**
 
 If you run Pomerium Core in Docker, its logs are lines of JSON buried in `docker logs` — hard to scan and impossible to filter. This tool gives you a fast web page for watching those logs live and searching them, with filters that understand Pomerium fields (allow/deny decisions, users, request IDs, client IPs…). It changes nothing about Pomerium and needs no Pomerium configuration: it simply reads your Pomerium container's log stream and presents it readably.
