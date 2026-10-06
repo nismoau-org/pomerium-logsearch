@@ -94,6 +94,8 @@ input.invalid { border-color: var(--red); outline: 1px solid var(--red); }
   font-size: 13px;
 }
 .btn.primary { background: var(--accent); border-color: var(--accent); color: #fff; }
+/* Jump to live is lit only while actually live (following at the edge). */
+.btn.live { background: var(--accent); border-color: var(--accent); color: #fff; }
 
 /* Segmented tri-state control (reused inside the Decision popup). */
 .seg { display: inline-flex; border: 1px solid var(--border); border-radius: 6px; overflow: hidden; }

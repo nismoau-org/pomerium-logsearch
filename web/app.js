@@ -1371,6 +1371,7 @@ function setSort(v) {
   applySort();
   updateFooter();
   queueRender(false);
+  updateLiveBtn();
 }
 
 function setFollow(v) {
@@ -1378,6 +1379,15 @@ function setFollow(v) {
   els.followBtn.textContent = follow ? "Pause" : "Follow";
   els.followBtn.setAttribute("aria-pressed", follow ? "true" : "false");
   if (follow) scrollToLive();
+  updateLiveBtn();
+}
+
+// Jump to live is lit only while actually live (following AND at the edge);
+// scrolled-away/paused states leave it unlit as the visual cue.
+function updateLiveBtn() {
+  const live = follow && atLiveEdge();
+  els.liveBtn.classList.toggle("live", live);
+  els.liveBtn.setAttribute("aria-pressed", live ? "true" : "false");
 }
 
 // ---------- time-range popup (absolute range, Elasticsearch-style) ----------
@@ -1468,30 +1478,34 @@ function initControls() {
       commitInlineEdit();
     }
   });
-  // Any manual scroll that leaves the live edge pauses follow, so a held
-  // position is never dragged away by incoming batches. The exemption is a
-  // 2px epsilon (atLiveEdge), not the 4-row pin zone: anything beyond it is
-  // intentional, and small scrolls near the edge must hold too — otherwise
-  // every batch would suck the view back and scrolling could never stick.
-  // Programmatic pins land exactly on the edge so they never trigger this;
-  // rubber-band overshoot (out of bounds) is not intent either.
+  // Any manual scroll away from the live edge pauses follow, however small:
+  // the movement's direction (not its distance) decides, so a 1px nudge
+  // holds instead of being re-pinned. Programmatic pins always move toward
+  // the edge so they never qualify; overshoot in either direction is
+  // rubber-band bounce, not intent (wasOOB covers the settle-back event).
   // Click Follow / Jump to live to resume.
   els.loglist.addEventListener("scroll", () => {
     const el = els.loglist;
     const st = el.scrollTop;
-    const moved = st !== lastScrollTop;
+    const delta = st - lastScrollTop;
+    const max = el.scrollHeight - el.clientHeight;
+    const wasOOB = lastScrollTop < 0 || lastScrollTop > max;
     lastScrollTop = st;
-    if (!moved || displayed.length === 0) {
+    if (delta === 0 || displayed.length === 0) {
       queueRender(false);
+      updateLiveBtn();
       return;
     }
-    const max = el.scrollHeight - el.clientHeight;
     if (st < 0 || st > max) {
       queueRender(false); // overscroll bounce, not a scroll position
+      updateLiveBtn();
       return;
     }
-    if (follow && !atLiveEdge()) setFollow(false);
+    // Away from the live edge: up in asc (oldest-first), down in desc.
+    // wasOOB exempts the settle-back event after rubber-band overshoot.
+    if (follow && !wasOOB && (sortOrder === "asc" ? delta < 0 : delta > 0)) setFollow(false);
     queueRender(false);
+    updateLiveBtn();
   }, { passive: true });
   window.addEventListener("resize", () => queueRender(false));
 }
@@ -1507,6 +1521,7 @@ async function main() {
   setSort(sortOrder); // sync sort button label + aria with loaded pref
   updateHeaderStates();
   updateFooter();
+  updateLiveBtn();
   await loadBuffer();
   connectWS();
 }

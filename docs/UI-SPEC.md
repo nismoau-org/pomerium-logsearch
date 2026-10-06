@@ -2,9 +2,9 @@
 
 ## Header
 - **Container**: fixed at startup from `POMERIUM_CONTAINER` (default `pomerium`); shown as static label in header (no dropdown; selection endpoints deferred — see API.md "Future")
-- **Follow/Pause**: toggle (default Follow on). Following pins the view to the live edge (newest rows); Pause disables autoscroll. Any manual scroll that leaves the view off the live edge auto-pauses, so a scroll position is never dragged away by incoming batches (click Follow or Jump to live to resume)
+- **Follow/Pause**: toggle (default Follow on). Following pins the view to the live edge (newest rows); Pause disables autoscroll. Any scroll away from the live edge — however small — auto-pauses (direction decides, not distance), so a held position is never dragged away by incoming batches; scrolling toward the edge stays live (click Follow or Jump to live to resume)
 - **Sort**: toggle between oldest-first (default, newest at bottom) and newest-first (newest at top). Follow pins to the live edge in either order
-- **Jump to live**: jumps to the newest rows and re-enables Follow
+- **Jump to live**: jumps to the newest rows and re-enables Follow; lit only while actually live (following at the edge), unlit whenever scrolled away/paused
 - **Columns**: opens the column-visibility panel (same checkboxes as before, now in a popup)
 - **Reset filters**: clears all column filters and the time range (global Search is separate)
 - **Clear**: clear current view buffer (client-side only)

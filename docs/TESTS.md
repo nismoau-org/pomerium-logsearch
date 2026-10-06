@@ -79,7 +79,7 @@ Run against real Pomerium container `pomerium`:
 2. Open `http://127.0.0.1:8081`
 3. Initial buffer loads (≈1000 lines), footer shows `connected`
 4. Live tail: new lines appear, autoscroll follows
-5. Pause stops autoscroll; Follow resumes to bottom; any manual scroll that leaves the view off the live edge auto-pauses (incoming batches never drag a held position)
+5. Pause stops autoscroll; Follow resumes to bottom; any scroll away from the live edge — however small — auto-pauses (scrolling toward it stays live)
 6. Search: plain text finds matches; regex toggle works; invalid regex shows error
 7. Level header popup: dropdown filters correctly, dismisses on select, header shows marker
 8. Decision header popup: Allow/Deny tri-state + reason input filter authorize logs; header shows marker
@@ -90,7 +90,7 @@ Run against real Pomerium container `pomerium`:
 13. Confirm no exposure: `curl -H "Host: evil" http://127.0.0.1:8081` works locally only; not reachable from another host
 14. High-volume check: burst logs remain responsive (scroll/search smooth)
 15. Sort toggle: newest-first puts newest at top; oldest-first restores newest at bottom; follow pins to the live edge in both orders
-16. Jump to live: after scrolling away (paused), jumps to newest rows and resumes follow
+16. Jump to live: after scrolling away (paused, button unlit), jumps to newest rows and resumes follow (button lit while live)
 17. Columns button: grouped per log type; enable all columns → list scrolls horizontally (no wrapping/clipping), header stays aligned while scrolling; blanks render for rows lacking the key; enable a discovered field and add one by name → both render, filter, and survive reload; drag a header edge to resize (min = header text, double-click resets); toggles + widths + custom columns + sort survive reload via localStorage
 18. Service/Req ID/Method/Host/Message headers: click to edit inline, each narrows the list (AND with search)
 19. Time header popup: starts collapsed with live tail following; preset (e.g. Last 1 hour) narrows to that window; custom From/To via calendar works; Start-after-end shows an error; Apply/Clear/Escape closes the popup; Reset filters clears everything
