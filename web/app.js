@@ -983,11 +983,21 @@ function queueRender(stick = false) {
 }
 
 // The "live edge" is where the newest rows sit: bottom in asc order,
-// top in desc order. Follow mode pins the view there.
+// top in desc order. Follow mode pins the view there. nearLiveEdge's 4-row
+// zone keeps tailing stable across render timing; atLiveEdge's 2px epsilon
+// is the pause decision (see the scroll handler): anything beyond it is an
+// intentional move that must hold its position.
+const EDGE_EPS = 2;
 function nearLiveEdge() {
   const el = els.loglist;
   if (sortOrder === "desc") return el.scrollTop < ROW_H * 4;
   return el.scrollHeight - el.scrollTop - el.clientHeight < ROW_H * 4;
+}
+
+function atLiveEdge() {
+  const el = els.loglist;
+  if (sortOrder === "desc") return el.scrollTop <= EDGE_EPS;
+  return el.scrollHeight - el.scrollTop - el.clientHeight <= EDGE_EPS;
 }
 
 function scrollToLive() {
@@ -1426,17 +1436,29 @@ function initControls() {
       commitInlineEdit();
     }
   });
-  // Any manual scroll that leaves the view off the live edge pauses follow.
-  // With a live stream, staying pinned would otherwise drag the view to the
-  // edge on every batch, so an exact scroll position could never be held
-  // (scrolling down one line would run away to the bottom). Programmatic
-  // live-edge pins land exactly on the edge, so they never trigger this.
+  // Any manual scroll that leaves the live edge pauses follow, so a held
+  // position is never dragged away by incoming batches. The exemption is a
+  // 2px epsilon (atLiveEdge), not the 4-row pin zone: anything beyond it is
+  // intentional, and small scrolls near the edge must hold too — otherwise
+  // every batch would suck the view back and scrolling could never stick.
+  // Programmatic pins land exactly on the edge so they never trigger this;
+  // rubber-band overshoot (out of bounds) is not intent either.
   // Click Follow / Jump to live to resume.
   els.loglist.addEventListener("scroll", () => {
-    const st = els.loglist.scrollTop;
+    const el = els.loglist;
+    const st = el.scrollTop;
     const moved = st !== lastScrollTop;
     lastScrollTop = st;
-    if (follow && moved && displayed.length > 0 && !nearLiveEdge()) setFollow(false);
+    if (!moved || displayed.length === 0) {
+      queueRender(false);
+      return;
+    }
+    const max = el.scrollHeight - el.clientHeight;
+    if (st < 0 || st > max) {
+      queueRender(false); // overscroll bounce, not a scroll position
+      return;
+    }
+    if (follow && !atLiveEdge()) setFollow(false);
     queueRender(false);
   }, { passive: true });
   window.addEventListener("resize", () => queueRender(false));
