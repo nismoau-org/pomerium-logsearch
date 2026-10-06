@@ -26,6 +26,7 @@ MVP filtering/search runs in the browser over the in-memory buffer; Go only serv
 - Reason contains filter matches any of the four reason fields
 - User/email, path/host (with `authority` fallback), response-code exact/partial
 - Service, request-id (`request-id` + `check-request-id`), method, message, time-substring filters
+- IP scope (`ipScope`/`fwdScope`: public vs RFC1918 private, with ports, forwarded-for chains, and IPv6 forms)
 - Absolute time range (`timeFrom`/`timeTo` epoch bounds; unparseable timestamps excluded while a range is active)
 - Full-text: case-insensitive substring over raw + parsed values
 - Regex: valid pattern matches; invalid pattern → UI shows error (no crash)
@@ -67,7 +68,7 @@ Use a fixture container built from a tiny Dockerfile or `docker run alpine sh -c
 
 ## 5) Frontend tests
 
-- **JS predicate tests** (`web/filters.test.js`, run in CI via `node --test web/filters.test.js`): level aliases, decision inference (bools + reason fields), every column filter, generic custom-field queries, time-range bounds, invalid-regex error, AND-combination.
+- **JS predicate tests** (`web/filters.test.js`, run in CI via `node --test web/filters.test.js`): level aliases, decision inference (bools + reason fields), every column filter, generic custom-field queries, IP scope classification + matching, time-range bounds, invalid-regex error, AND-combination.
 - Manual smoke checklist (below) covers rendering, expand/collapse, follow/pause/sort/columns/time-range.
 - Deferred: Playwright against a mocked server (static UI + fixture `/api/buffer`) if browser-level automation is ever needed.
 
@@ -84,7 +85,7 @@ Run against real Pomerium container `pomerium`:
 7. Level header popup: dropdown filters correctly, dismisses on select, header shows marker
 8. Decision header popup: Allow/Deny tri-state + reason input filter authorize logs; header shows marker
 9. Text header inline edit: click User/Path/Code header, type to filter live, Enter/Escape/outside-click commits back to label with marker
-10. Click row → full JSON expands; copy buttons work (request-id, user, path, host); click a Req ID/IP/Host/Fwd For/User Agent cell → filters to that value, click again clears
+10. Click row → full JSON expands; copy buttons work (request-id, user, path, host); click a Req ID/IP/Host/Fwd For/User Agent cell → filters to that value, click again clears; IP/Fwd For header popup → Public/Private scope toggle filters by address scope (with contains input), header shows marker
 11. Restart Pomerium container → UI reconnects, streaming resumes (status shows reconnecting → connected)
 12. Restart UI container → buffer refills from initial tail
 13. Confirm no exposure: `curl -H "Host: evil" http://127.0.0.1:8081` works locally only; not reachable from another host

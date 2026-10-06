@@ -1,49 +1,56 @@
 # pomerium-logsearch
 
-Fast, simple, read-only web UI for tailing and searching Pomerium Core logs from Docker.
+**A friendly log viewer that sits alongside your Pomerium zero-trust proxy.**
 
-## Goal
-Provide a local-only web UI to tail and search JSON logs emitted by Pomerium (running in Docker) with Pomerium-specific filters. Read-only by design.
+If you run Pomerium Core in Docker, its logs are lines of JSON buried in `docker logs` — hard to scan and impossible to filter. This tool gives you a fast web page for watching those logs live and searching them, with filters that understand Pomerium fields (allow/deny decisions, users, request IDs, client IPs…). It changes nothing about Pomerium and needs no Pomerium configuration: it simply reads your Pomerium container's log stream and presents it readably.
 
-## Key decisions
-- Source: Docker container running Pomerium (name configurable via `POMERIUM_CONTAINER`, default `pomerium`)
-- Run mode: Docker container (self-contained), mounted with `/var/run/docker.sock`
-- Bind: `127.0.0.1:8081` (localhost-only; `HOST_BIND` deploy-time override exists — LAN exposure is at your own risk, see Security)
-- Buffer: in-memory ring buffer (last 10k lines), initial load 1000 lines, no persistence
-- Filters: allow/deny + reason, user/email, path/host, response-code, service, request-id, method, message, time substring, absolute time-range picker (all client-side, AND-combined)
-- UI: Vanilla JS, virtualized list, WebSocket live tail, sort asc/desc, jump-to-live, toggleable columns, embedded static files
+## How it fits in
 
-## Quickstart (docker compose)
-1. Pull and run the prebuilt image (no build step — this `docker-compose.yml`
-   has no `build:` section, so it is also paste-ready for Portainer stacks):
-   ```sh
-   POMERIUM_CONTAINER=<your-pomerium-container> docker compose up -d
-   ```
-   (`POMERIUM_CONTAINER` must match `docker ps` output; default: `pomerium`.
-   `TAG=latest` selects the latest `v*` release instead of the default `edge`.)
-2. Open http://127.0.0.1:8081
-3. Stop with `docker compose down`
+- **You already have:** Docker, plus a Pomerium container running in it (often named `pomerium` — check with `docker ps`).
+- **You add:** this container. It reads Pomerium's log output through the Docker socket and serves a local web UI at http://127.0.0.1:8081 (your machine only, not your network).
+- **Read-only by design:** it never writes to disk — logs live in memory (the last 10,000 lines) — and never touches your Pomerium setup.
 
-Developers — build from source instead of pulling:
+## What you can do with it
+
+- **Watch logs live** as requests arrive, **pause** to look around, and **jump back to live** when ready.
+- **Search everything** (plain text or regex).
+- **Filter by column** — click any column header: log level, allow/deny decision plus reason, user, client IP (with a Public/Private toggle), path, host, forwarded-for, request ID, message, or time range. Active filters show right in the header.
+- **Click a value to isolate it** — click a request ID (or IP, host, etc.) in any row to filter to just that; click again to clear.
+- **Shape the table** — show or hide any column (including any field found in your logs), and drag header edges to resize.
+- **Inspect a row** — expand it for pretty-printed JSON with one-click copy buttons for key fields.
+- **Sort** oldest-first or newest-first.
+
+## Quickstart
+
+You need Docker running and your Pomerium container running. First find your Pomerium container's exact name:
+
 ```sh
-docker compose -f docker-compose.yml -f docker-compose.build.yml up -d --build
+docker ps --format '{{.Names}}'
 ```
 
+Then start this tool (replace `<your-pomerium-container>` with that name; the default is `pomerium`):
+
+```sh
+POMERIUM_CONTAINER=<your-pomerium-container> docker compose up -d
+```
+
+Then open http://127.0.0.1:8081 in your browser. To stop it later: `docker compose down`.
+
 Notes:
-- The UI is published on host loopback only (`127.0.0.1:8081`) via `HOST_BIND` (default); setting `HOST_BIND=0.0.0.0` exposes an unauthenticated UI to the LAN — prefer an authenticated reverse proxy or SSH tunnel instead.
-- The compose file mounts `/var/run/docker.sock` (root-equivalent) and runs as `user: "0:0"` (required for socket access) — trusted hosts only.
+- The ready-made `docker-compose.yml` pulls the prebuilt image (no build step) and also works pasted into Portainer stacks. `TAG=latest` selects the latest `v*` release instead of the default `edge`.
+- Developers — build from source instead of pulling:
+  ```sh
+  docker compose -f docker-compose.yml -f docker-compose.build.yml up -d --build
+  ```
+- The UI listens on host loopback only (`127.0.0.1:8081`). Setting `HOST_BIND=0.0.0.0` would expose an unauthenticated UI to your LAN — prefer an authenticated reverse proxy or SSH tunnel instead.
+- The compose file mounts `/var/run/docker.sock` (powerful — equivalent to root on the host) and runs as `user: "0:0"` (required to read the socket) — trusted hosts only.
 - See [docker-compose.yml](docker-compose.yml) for all options (`POMERIUM_CONTAINER`, `TAG`, `HOST_BIND`, `BIND_ADDR`, `ALLOW_REMOTE`, `BUFFER_SIZE`, `INIT_TAIL`).
 
-## Security
-- Localhost-only (`127.0.0.1`)
-- Read-only; no disk writes by default
-- Minimal surface area; designed for local debugging
-- See [docs/SECURITY.md](docs/SECURITY.md) for the full security plan (secret hygiene, non-disclosure of internal configs, Docker socket caveat)
-
 ## Troubleshooting
+
+- **No logs showing?** Check the basics on the host first: does `docker logs <your-pomerium-container>` print lines? If yes, make sure `POMERIUM_CONTAINER` matches `docker ps` exactly and the stack runs as `user: "0:0"` (shipped in the compose file) so it can read the Docker socket.
 - **Refuses to start**: `refusing to bind non-loopback address "0.0.0.0:8081"` — the shipped compose already sets the required `ALLOW_REMOTE=true`; if you see this you are running an old stack file or a bare binary without `--allow-remote`.
-- **Empty logs** (`/api/buffer` shows `total: 0`): the container can't read the Docker socket (needs `user: "0:0"`, shipped in compose), `POMERIUM_CONTAINER` doesn't match `docker ps` on that host, or the target's log driver keeps no stdout/stderr (check `docker logs <name>` on the host first).
-- **UI stuck on `reconnecting`**: the page loads but the browser's WebSocket upgrade fails. Verify the server is innocent (any random nonce works as the key — it is sent in cleartext on every handshake by design, so use a fresh one, never a pasted value):
+- **UI stuck on `reconnecting`**: the page loads but the browser's live-update connection fails. Verify the server is innocent (any random nonce works as the key — it is sent in cleartext on every handshake by design, so use a fresh one, never a pasted value):
   ```sh
   KEY=$(openssl rand -base64 16)
   curl -i -N -H "Connection: Upgrade" -H "Upgrade: websocket" -H "Sec-WebSocket-Version: 13" -H "Sec-WebSocket-Key: $KEY" http://<host>:8081/ws
@@ -52,6 +59,7 @@ Notes:
 - **Portainer `listing workers for Build` errors**: the stack file contains a `build:` section — use the shipped pull-only `docker-compose.yml` (set stack env vars instead of editing YAML: `POMERIUM_CONTAINER`, `TAG`, `HOST_BIND`).
 
 ## Documentation
+
 - [docs/PLAN.md](docs/PLAN.md) — implementation plan
 - [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) — backend/frontend/deployment architecture
 - [docs/UI-SPEC.md](docs/UI-SPEC.md) — UI specification
@@ -61,4 +69,5 @@ Notes:
 - [docs/SECURITY.md](docs/SECURITY.md) — security & hygiene plan
 
 ## License
+
 MIT (LICENSE added during implementation)

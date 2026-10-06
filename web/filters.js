@@ -80,6 +80,151 @@ function contains(haystack, needle) {
   return haystack.toLowerCase().includes(needle.toLowerCase());
 }
 
+// ---------- IP address scope (public vs RFC1918 private) ----------
+// "Public" means globally routable unicast — not merely non-RFC1918:
+// loopback, link-local, multicast, CGNAT, documentation, and reserved ranges
+// are excluded too. "Private" is exactly RFC1918 (10/8, 172.16/12,
+// 192.168/16); other special addresses (e.g. loopback) match neither scope.
+
+function parseIpv4Dotted(s) {
+  const m = /^(\d{1,3})\.(\d{1,3})\.(\d{1,3})\.(\d{1,3})$/.exec(s);
+  if (!m) return null;
+  const parts = m.slice(1).map(Number);
+  if (!parts.every((n) => n >= 0 && n <= 255)) return null;
+  return parts;
+}
+
+function parseHextets(head, tailCount) {
+  const dbl = head.split("::");
+  if (dbl.length > 2) return null;
+  const side = (s) => {
+    if (s === "") return [];
+    const out = [];
+    for (const g of s.split(":")) {
+      if (!/^[0-9a-fA-F]{1,4}$/.test(g)) return null;
+      out.push(parseInt(g, 16));
+    }
+    return out;
+  };
+  if (dbl.length === 1) {
+    const g = side(head);
+    return g && g.length === 8 - tailCount ? g : null;
+  }
+  const left = side(dbl[0]);
+  const right = side(dbl[1]);
+  if (!left || !right) return null;
+  if (left.length + right.length > 8 - tailCount) return null;
+  const fill = 8 - tailCount - left.length - right.length;
+  if (fill < 1) return null; // "::" must compress at least one group
+  return [...left, ...new Array(fill).fill(0), ...right];
+}
+
+/**
+ * parseIpLiteral(token) -> { family: 4|6, parts } | null.
+ * Accepts a lone address with optional port (`1.2.3.4:443`), bracketed IPv6
+ * with optional port (`[::1]:443`), and zone ids (`fe80::1%eth0`).
+ */
+export function parseIpLiteral(token) {
+  if (typeof token !== "string") return null;
+  let t = token.trim().replace(/^['"]+|['"]+$/g, "");
+  if (!t) return null;
+  const br = t.match(/^\[([^\]]+)\](?::\d{1,5})?$/);
+  if (br) t = br[1];
+  const pct = t.indexOf("%");
+  if (pct >= 0) t = t.slice(0, pct);
+  if (!t) return null;
+  const v4 = t.match(/^(\d{1,3}(?:\.\d{1,3}){3})(?::\d{1,5})?$/);
+  if (v4) {
+    const parts = parseIpv4Dotted(v4[1]);
+    return parts ? { family: 4, parts } : null;
+  }
+  if (!t.includes(":")) return null;
+  let tail = null;
+  let head = t;
+  if (t.includes(".")) {
+    // IPv4-embedded tail (e.g. ::ffff:192.0.2.1, 64:ff9b::192.0.2.1).
+    const i = t.lastIndexOf(":");
+    const v4tail = i < 0 ? null : parseIpv4Dotted(t.slice(i + 1));
+    if (!v4tail) return null;
+    tail = [(v4tail[0] << 8) | v4tail[1], (v4tail[2] << 8) | v4tail[3]];
+    head = t.slice(0, i);
+    if (head.endsWith(":") && !head.endsWith("::")) head += ":"; // keep "::" whole
+    if (head === "" || head === ":") return null;
+  }
+  const groups = parseHextets(head, tail ? 2 : 0);
+  if (!groups) return null;
+  return { family: 6, parts: tail ? [...groups, ...tail] : groups };
+}
+
+function ipv4Scope(p) {
+  const [a, b, c] = p;
+  if (a === 10 || (a === 172 && b >= 16 && b <= 31) || (a === 192 && b === 168)) {
+    return "private";
+  }
+  if (a === 0 || a === 127) return ""; // unspecified / loopback
+  if (a === 169 && b === 254) return ""; // link-local
+  if (a === 100 && b >= 64 && b <= 127) return ""; // shared CGNAT space
+  if (a === 192 && b === 0 && c === 0) return ""; // 192.0.0.0/24 special registry
+  if (a === 192 && b === 0 && c === 2) return ""; // 192.0.2.0/24 documentation
+  if (a === 198 && (b === 18 || b === 19)) return ""; // 198.18.0.0/15 benchmarking
+  if (a === 198 && b === 51 && c === 100) return ""; // 198.51.100.0/24 documentation
+  if (a === 203 && b === 0 && c === 113) return ""; // 203.0.113.0/24 documentation
+  if (a >= 224) return ""; // multicast + reserved
+  return "public";
+}
+
+function ipv4FromParts(hi, lo) {
+  return [(hi >> 8) & 0xff, hi & 0xff, (lo >> 8) & 0xff, lo & 0xff];
+}
+
+function ipv6Scope(p) {
+  if (p.every((n) => n === 0)) return ""; // ::
+  if (p[7] === 1 && p.slice(0, 7).every((n) => n === 0)) return ""; // ::1 loopback
+  if ((p[0] & 0xff00) === 0xff00) return ""; // multicast
+  if ((p[0] & 0xffc0) === 0xfe80) return ""; // link-local
+  if ((p[0] & 0xfe00) === 0xfc00) return ""; // unique local (not RFC1918; neither scope)
+  if (p[0] === 0x2001 && p[1] === 0x0db8) return ""; // documentation
+  if (p[0] === 0x2001 && p[1] === 0x0000) return ""; // Teredo (obfuscated; unclassifiable)
+  if (p[0] === 0 && p[1] === 0 && p[2] === 0 && p[3] === 0 && p[4] === 0 && p[5] === 0xffff) {
+    return ipv4Scope(ipv4FromParts(p[6], p[7])); // IPv4-mapped
+  }
+  if (p[0] === 0x2002) {
+    return ipv4Scope(ipv4FromParts(p[1], p[2])); // 6to4 embeds the IPv4 address
+  }
+  if (p[0] === 0x0064 && p[1] === 0xff9b && p[2] === 0 && p[3] === 0 && p[4] === 0) {
+    if (p[5] !== 0) return ""; // 64:ff9b:1::/48 local use etc.
+    return ipv4Scope(ipv4FromParts(p[6], p[7])); // NAT64 well-known prefix
+  }
+  return "public";
+}
+
+/**
+ * ipScopeOfValue(value) -> "public" | "private" | "".
+ * Uses the first parseable literal in comma/space-separated lists (e.g.
+ * X-Forwarded-For chains, where the leftmost entry is the original client).
+ * "" means unknown or special-but-neither (e.g. loopback): it matches no
+ * active scope, so scoped-out rows are excluded rather than guessed.
+ */
+export function ipScopeOfValue(value) {
+  const s = str(value);
+  if (!s) return "";
+  for (const tok of s.split(/[,;\s]+/)) {
+    if (!tok) continue;
+    const lit = parseIpLiteral(tok);
+    if (!lit) continue;
+    return lit.family === 4 ? ipv4Scope(lit.parts) : ipv6Scope(lit.parts);
+  }
+  return "";
+}
+
+/** ipScopeMatches(value, scope): "all"/empty always passes. */
+export function ipScopeMatches(value, scope) {
+  if (!scope || scope === "all") return true;
+  const s = ipScopeOfValue(value);
+  if (!s) return false;
+  return s === scope;
+}
+
 // Filter keys with bespoke matching in matchFilters. Any OTHER key present
 // on the filter object is a generic attribute query: case-insensitive
 // substring match over the same-named parsed field. Custom/discovered
@@ -87,7 +232,7 @@ function contains(haystack, needle) {
 const KNOWN_FILTER_KEYS = new Set([
   "level", "decision", "reason", "user", "path", "code",
   "service", "reqid", "method", "host", "message", "time",
-  "timeFrom", "timeTo",
+  "timeFrom", "timeTo", "ipScope", "fwdScope",
 ]);
 
 /**
@@ -103,6 +248,9 @@ const KNOWN_FILTER_KEYS = new Set([
  * - method: over method
  * - message: over message + msg
  * - time: over parsed.time + entry ts (e.g. "12:20" or "2026-10-04")
+ * - ipScope: "all" | "public" | "private" over parsed.ip
+ * - fwdScope: "all" | "public" | "private" over parsed["forwarded-for"]
+ *   (falling back to parsed["x-forwarded-for"])
  * - any other key: case-insensitive substring over parsed[key]
  *   (generic attribute queries for custom/discovered columns)
  * Missing/empty criteria pass.
@@ -178,6 +326,15 @@ export function matchFilters(entry, f = {}) {
 
   if (f.timeFrom != null || f.timeTo != null) {
     if (!matchTimeRange(entry, f.timeFrom, f.timeTo)) return false;
+  }
+
+  if (f.ipScope && f.ipScope !== "all") {
+    if (!ipScopeMatches(str(parsed.ip), f.ipScope)) return false;
+  }
+
+  if (f.fwdScope && f.fwdScope !== "all") {
+    const fwdRaw = str(parsed["forwarded-for"]) || str(parsed["x-forwarded-for"]);
+    if (!ipScopeMatches(fwdRaw, f.fwdScope)) return false;
   }
 
   for (const k of Object.keys(f)) {

@@ -12,7 +12,8 @@
 
 ## Column headers (click to filter)
 Every column header is a button. There are no standalone filter boxes — only the cross-column Search stays in the toolbar. Filtered columns show the active value inline next to the title (`TITLE = value`, italic accent normal-case vs the muted uppercase label, ellipsis-truncated so narrow columns cost no extra width), plus an accent marker and a tooltip/aria summary of the full value.
-- **Text columns** (Service, Code, User, IP, Path, Method, Host, Fwd For, Req ID, Message, plus any custom field): clicking swaps the label for an inline input in place, styled distinctly (italic, accent-colored, normal case vs the muted uppercase label). Typing applies live (debounced); Enter applies immediately, Escape/blur/outside-click commits. Works in narrow columns too (text scrolls inside the input).
+- **Text columns** (Service, Code, User, Path, Method, Host, Req ID, Message, plus any custom field): clicking swaps the label for an inline input in place, styled distinctly (italic, accent-colored, normal case vs the muted uppercase label). Typing applies live (debounced); Enter applies immediately, Escape/blur/outside-click commits. Works in narrow columns too (text scrolls inside the input).
+- **IP / Fwd For**: popup with an All/Public/Private scope toggle plus a contains input. Public means globally routable (excludes private, loopback, link-local, multicast, CGNAT, documentation, and reserved ranges); Private is exactly RFC1918. Scope and text combine (AND).
 - **Level**: dropdown popup, applies and dismisses on select
 - **Decision**: popup with All/Allow/Deny tri-state (applies + dismisses) plus Reason-contains input (live)
 - **Time**: popup with quick presets (Last 15 min / 1 hour / 24 hours / 7 days / Today) plus custom From/To calendar inputs with Apply/Clear. Applies an absolute range over entry timestamps; Start-after-end is rejected inline. Ranges are absolute once applied (not sliding) and are not persisted across reloads
@@ -34,7 +35,7 @@ The grid is the union of known normalized fields across service types (`authoriz
 - Toggles + widths + custom columns + sort order persist in `localStorage` (best-effort; private mode falls back to defaults)
 
 ## Column filters
-Every column is filterable via its header popup (AND semantics with everything else): Level dropdown, Allow/Deny tri-state + reason, contains inputs for Service / Code / User / IP / Path / Method / Host / Fwd For / Req ID / Message and any custom-field column, absolute time-range picker. Host/Authority is covered by both the Path filter (path+host+authority) and the dedicated Host filter (host+authority).
+Every column is filterable via its header popup (AND semantics with everything else): Level dropdown, Allow/Deny tri-state + reason, contains inputs for Service / Code / User / Path / Method / Host / Req ID / Message and any custom-field column, IP/Fwd For scope toggle (All/Public/Private) plus contains input, absolute time-range picker. Host/Authority is covered by both the Path filter (path+host+authority) and the dedicated Host filter (host+authority).
 
 ## Expanded View (per row)
 - Pretty-printed JSON with collapsible fields (or simple scrollable block)

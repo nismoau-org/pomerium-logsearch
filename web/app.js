@@ -44,7 +44,8 @@ let lastEnd = -1;
 let lastSig = "";
 
 const filters = { level: "all", decision: "all", reason: "", user: "", path: "", code: "",
-  service: "", reqid: "", method: "", host: "", message: "", time: "", timeFrom: null, timeTo: null };
+  service: "", reqid: "", method: "", host: "", message: "", time: "", timeFrom: null, timeTo: null,
+  ipScope: "all", fwdScope: "all" };
 let search = "";
 let isRegex = false;
 const timeRange = { fromMs: null, toMs: null };
@@ -54,7 +55,8 @@ const timeRange = { fromMs: null, toMs: null };
 // lack, so heterogeneous schemas share one stable layout. `on` is the
 // default visibility (persisted); `kind` selects the header-popup editor:
 // text (contains input), level (dropdown), decision (tri-state + reason),
-// time (presets + calendar range). `key` is the filters.js field;
+// time (presets + calendar range), ip (contains input + public/private scope).
+// `key` is the filters.js field;
 // `fields` is the ordered parsed-key list a text column displays (first hit
 // wins) — the filter itself matches `key` exactly via the generic
 // matchFilters path. `group` buckets columns in the Columns dialog per log
@@ -67,11 +69,11 @@ const COLUMNS = [
   { id: "decision", label: "Decision", cls: "c-dec", on: true, kind: "decision", group: "common" },
   { id: "code", label: "Code", cls: "c-code", on: true, kind: "text", key: "code", fields: ["response-code", "status", "code", "statusCode"], group: "common", hint: "Contains match over response code" },
   { id: "user", label: "User", cls: "c-user", on: true, kind: "text", key: "user", fields: ["user", "email"], group: "authorize", hint: "Contains match over user and email" },
-  { id: "ip", label: "IP", cls: "c-ip", on: false, kind: "text", key: "ip", fields: ["ip"], group: "authorize", hint: "Contains match over client ip", clickFilter: true },
+  { id: "ip", label: "IP", cls: "c-ip", on: false, kind: "ip", key: "ip", fields: ["ip"], scopeKey: "ipScope", group: "authorize", hint: "Contains match over client ip", clickFilter: true },
   { id: "path", label: "Path", cls: "c-path", on: true, kind: "text", key: "path", fields: ["path", "host", "authority"], group: "envoy", hint: "Contains match over path, host and authority" },
   { id: "method", label: "Method", cls: "c-method", on: false, kind: "text", key: "method", fields: ["method"], group: "envoy", hint: "Contains match over method" },
   { id: "host", label: "Host", cls: "c-host", on: false, kind: "text", key: "host", fields: ["host", "authority"], group: "envoy", hint: "Contains match over host and authority", clickFilter: true },
-  { id: "fwdf", label: "Fwd For", cls: "c-fwd", on: false, kind: "text", key: "forwarded-for", fields: ["forwarded-for", "x-forwarded-for"], group: "envoy", hint: "Contains match over forwarded-for", clickFilter: true },
+  { id: "fwdf", label: "Fwd For", cls: "c-fwd", on: false, kind: "ip", key: "forwarded-for", fields: ["forwarded-for", "x-forwarded-for"], scopeKey: "fwdScope", group: "envoy", hint: "Contains match over forwarded-for", clickFilter: true },
   { id: "ua", label: "User Agent", cls: "c-ua", on: false, kind: "text", key: "user-agent", fields: ["user-agent", "user_agent"], group: "envoy", hint: "Contains match over user-agent", clickFilter: true },
   { id: "reqid", label: "Req ID", cls: "c-reqid", on: false, kind: "text", key: "reqid", fields: ["request-id", "check-request-id"], group: "envoy", hint: "Contains match over request-id", clickFilter: true },
   { id: "message", label: "Message", cls: "c-msg", on: true, kind: "text", key: "message", fields: ["message", "msg", "error", "err"], group: "common", hint: "Contains match over message", rawFallback: true },
@@ -304,6 +306,7 @@ function headBtn(id) {
 function columnActive(col) {
   switch (col.kind) {
     case "text": return !!filters[col.key];
+    case "ip": return !!filters[col.key] || (filters[col.scopeKey] || "all") !== "all";
     case "level": return filters.level !== "all";
     case "decision": return filters.decision !== "all" || !!filters.reason;
     case "time": return timeRange.fromMs != null || timeRange.toMs != null;
@@ -316,6 +319,15 @@ function columnSummary(col) {
     case "text": {
       const v = String(filters[col.key] || "");
       return v.length > 40 ? v.slice(0, 39) + "…" : v;
+    }
+    case "ip": {
+      const parts = [];
+      const scope = filters[col.scopeKey] || "all";
+      if (scope === "public") parts.push("public");
+      else if (scope === "private") parts.push("private");
+      const v = String(filters[col.key] || "");
+      if (v) parts.push(v.length > 40 ? v.slice(0, 39) + "…" : v);
+      return parts.join(", ");
     }
     case "level": return filters.level === "all" ? "" : filters.level;
     case "decision": {
@@ -515,6 +527,57 @@ function buildDecisionEditor(col) {
   return wrap;
 }
 
+function buildIpEditor(col) {
+  const wrap = document.createElement("div");
+  wrap.style.display = "contents";
+  wrap.appendChild(popTitle(`Filter ${col.label}`));
+  const scopeKey = col.scopeKey;
+  const cur = filters[scopeKey] || "all";
+  const seg = document.createElement("div");
+  seg.className = "seg";
+  seg.setAttribute("role", "group");
+  seg.setAttribute("aria-label", `${col.label} address scope`);
+  for (const [v, t, hint] of [["all", "All", "All addresses"],
+      ["public", "Public", "Globally routable addresses only"],
+      ["private", "Private", "Private (RFC1918) addresses only"]]) {
+    const b = document.createElement("button");
+    b.type = "button";
+    b.className = "seg-btn" + (cur === v ? " active" : "");
+    b.textContent = t;
+    b.title = hint;
+    b.setAttribute("aria-pressed", cur === v ? "true" : "false");
+    b.addEventListener("click", () => {
+      filters[scopeKey] = v;
+      refreshAndClose(true);
+    });
+    seg.appendChild(b);
+  }
+  wrap.appendChild(seg);
+  const lab = document.createElement("label");
+  lab.className = "pop-field";
+  lab.appendChild(document.createTextNode(`${col.label} contains`));
+  const input = document.createElement("input");
+  input.type = "text";
+  input.value = filters[col.key] || "";
+  input.placeholder = `${col.label} contains…`;
+  input.setAttribute("aria-label", `${col.label} filter`);
+  input.addEventListener("input", () => {
+    filters[col.key] = input.value;
+    refreshAndClose(false);
+  });
+  input.addEventListener("keydown", (ev) => {
+    if (ev.key === "Enter") refreshAndClose(true);
+  });
+  lab.appendChild(input);
+  wrap.appendChild(lab);
+  const hint = document.createElement("div");
+  hint.className = "col-hint";
+  hint.textContent = "Public excludes private, loopback, link-local, multicast and reserved ranges.";
+  wrap.appendChild(hint);
+  wrap.appendChild(popActions(() => { filters[scopeKey] = "all"; filters[col.key] = ""; }));
+  return wrap;
+}
+
 function buildTimeEditor() {
   const wrap = document.createElement("div");
   wrap.style.display = "contents";
@@ -701,7 +764,7 @@ function buildColumnsEditor() {
 }
 
 function openColumnPop(col, anchor) {
-  const builders = { level: buildLevelEditor, decision: buildDecisionEditor, time: () => buildTimeEditor() };
+  const builders = { level: buildLevelEditor, decision: buildDecisionEditor, time: () => buildTimeEditor(), ip: buildIpEditor };
   const build = builders[col.kind];
   if (!build) return;
   if (popId === col.id && !els.colPop.hidden) {
@@ -714,11 +777,15 @@ function openColumnPop(col, anchor) {
 // Inline header editing for text columns: clicking the header swaps the
 // label for an input in place (distinctly styled — see .colhead-input).
 // Typing applies live; Enter applies immediately, Escape/blur/outside-click
-// commits whatever is typed. Rich editors (level/decision/time) stay popups.
+// commits whatever is typed. Rich editors (level/decision/time/ip) stay popups.
 function onHeadClick(col, btn) {
   if (col.kind === "text") {
     if (btn.classList.contains("editing")) commitInlineEdit(true);
     else startInlineEdit(col, btn);
+    return;
+  }
+  if (col.kind === "ip") {
+    openColumnPop(col, btn);
     return;
   }
   openColumnPop(col, btn);
@@ -1335,7 +1402,9 @@ function resetColumnFilters() {
   filters.level = "all";
   filters.decision = "all";
   filters.reason = "";
-  for (const c of COLUMNS) if (c.kind === "text" && c.key) filters[c.key] = "";
+  for (const c of COLUMNS) if (c.key) filters[c.key] = "";
+  filters.ipScope = "all";
+  filters.fwdScope = "all";
   filters.time = "";
   filters.timeFrom = null;
   filters.timeTo = null;
