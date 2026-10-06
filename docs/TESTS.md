@@ -79,7 +79,7 @@ Run against real Pomerium container `pomerium`:
 2. Open `http://127.0.0.1:8081`
 3. Initial buffer loads (≈1000 lines), footer shows `connected`
 4. Live tail: new lines appear, autoscroll follows
-5. Pause stops autoscroll; Follow resumes to bottom
+5. Pause stops autoscroll; Follow resumes to bottom; scrolling away from the live edge auto-pauses
 6. Search: plain text finds matches; regex toggle works; invalid regex shows error
 7. Level header popup: dropdown filters correctly, dismisses on select, header shows marker
 8. Decision header popup: Allow/Deny tri-state + reason input filter authorize logs; header shows marker

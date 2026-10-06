@@ -2,6 +2,7 @@ import { filterEntries, entryDecision, normalizeLevel } from "./filters.js";
 
 const ROW_H = 28;
 const DETAIL_H = 232;
+const DETAIL_EXTRA = 9; // .detail vertical margins (2+6) + .row border-bottom (1); keep in sync with styles.css
 const OVERSCAN = 10;
 const CLIENT_CAP = 10000;
 const DEBOUNCE_MS = 200;
@@ -34,6 +35,11 @@ let connState = "connecting";
 let ws = null;
 let backoff = 1000;
 let renderQueued = false;
+let expandedVersion = 0; // bumped whenever `expanded` changes; part of the render cache key
+let lastScrollTop = 0; // baseline for detecting a manual scroll away from the live edge
+let lastStart = -1; // render cache: window + content signature of the last DOM build
+let lastEnd = -1;
+let lastSig = "";
 
 const filters = { level: "all", decision: "all", reason: "", user: "", path: "", code: "",
   service: "", reqid: "", method: "", host: "", message: "", time: "", timeFrom: null, timeTo: null };
@@ -611,7 +617,7 @@ function updateRegexError() {
 }
 
 function rowHeight(e) {
-  return expanded.has(e.id) ? ROW_H + DETAIL_H : ROW_H;
+  return expanded.has(e.id) ? ROW_H + DETAIL_H + DETAIL_EXTRA : ROW_H;
 }
 
 function queueRender(stick = false) {
@@ -641,7 +647,6 @@ function scrollToLive() {
 }
 
 function render(stick = false) {
-  const totalH = displayed.reduce((a, e) => a + rowHeight(e), 0);
   const scrollTop = els.loglist.scrollTop;
   const viewH = els.loglist.clientHeight || 600;
 
@@ -670,7 +675,27 @@ function render(stick = false) {
 
   els.logtop.style.height = topH + "px";
   els.logbottom.style.height = bottomH + "px";
-  void totalH;
+  els.emptyState.hidden = displayed.length !== 0;
+
+  // The header sits outside the scroll container (so virtualization math is
+  // untouched); shift its inner strip to follow horizontal scrolling.
+  els.colheaderIn.style.transform = `translateX(${-els.loglist.scrollLeft}px)`;
+
+  // Skip the DOM rebuild when neither the window nor the content changed
+  // (e.g. slow scrolling inside the current overscan window): tearing down
+  // and rebuilding ~40 rows per scroll frame is what made precise scrolling
+  // feel sticky. Spacers/empty-state/transform above are already in place.
+  const sig = displayed.length + "|" +
+    (displayed.length ? displayed[0].id + "|" + displayed[displayed.length - 1].id : "") +
+    "|" + sortOrder + "|exp" + expandedVersion;
+  const pin = (stick || (follow && nearLiveEdge())) && follow;
+  if (start === lastStart && end === lastEnd && sig === lastSig) {
+    if (pin) scrollToLive();
+    return;
+  }
+  lastStart = start;
+  lastEnd = end;
+  lastSig = sig;
 
   // Rebuild window rows.
   els.logrows.textContent = "";
@@ -678,15 +703,9 @@ function render(stick = false) {
   for (let i = start; i < end; i++) frag.appendChild(buildRow(displayed[i]));
   els.logrows.appendChild(frag);
 
-  els.emptyState.hidden = displayed.length !== 0;
-
-  if ((stick || (follow && nearLiveEdge())) && follow) {
+  if (pin) {
     scrollToLive();
   }
-
-  // The header sits outside the scroll container (so virtualization math is
-  // untouched); shift its inner strip to follow horizontal scrolling.
-  els.colheaderIn.style.transform = `translateX(${-els.loglist.scrollLeft}px)`;
 }
 
 function badge(text, cls) {
@@ -816,6 +835,7 @@ async function copyText(text, btn) {
 function toggleExpand(id) {
   if (expanded.has(id)) expanded.delete(id);
   else expanded.add(id);
+  expandedVersion++;
   queueRender(false);
 }
 
@@ -830,7 +850,9 @@ function addEntry(line) {
     const drop = entries.length - CLIENT_CAP;
     for (let i = 0; i < drop; i++) idSet.delete(entries[i].id);
     entries.splice(0, drop);
+    const before = expanded.size;
     for (const id of [...expanded]) if (!idSet.has(id)) expanded.delete(id);
+    if (expanded.size !== before) expandedVersion++;
   }
   const t = str(line.ts || "");
   if (t && (!lastTs || t > lastTs)) lastTs = t;
@@ -1057,7 +1079,20 @@ function initControls() {
       commitInlineEdit();
     }
   });
-  els.loglist.addEventListener("scroll", () => queueRender(false), { passive: true });
+  // Manual scroll away from the live edge pauses follow (direction-based, so
+  // programmatic live-edge pins never trigger it): otherwise every live batch
+  // yanks the view back and slow, precise scrolling while tailing is
+  // impossible. Click Follow / Jump to live to resume.
+  els.loglist.addEventListener("scroll", () => {
+    const st = els.loglist.scrollTop;
+    const delta = st - lastScrollTop;
+    lastScrollTop = st;
+    if (follow && displayed.length > 0) {
+      const away = sortOrder === "asc" ? delta < 0 : delta > 0;
+      if (away) setFollow(false);
+    }
+    queueRender(false);
+  }, { passive: true });
   window.addEventListener("resize", () => queueRender(false));
 }
 
